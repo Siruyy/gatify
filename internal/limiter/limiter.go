@@ -20,7 +20,7 @@ type Config struct {
 	Window time.Duration
 }
 
-// Limiter is a sliding-window rate limiter backed by Redis storage.
+// Limiter is a sliding-window rate limiter backed by a SlidingWindowStore.
 type Limiter struct {
 	store  SlidingWindowStore
 	limit  int64
