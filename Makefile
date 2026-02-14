@@ -22,6 +22,18 @@ test: ## Run tests
 test-verbose: ## Run tests with verbose output
 	$(GO) test $(GOFLAGS) -race -coverprofile=coverage.out -v ./...
 
+test-integration: ## Run integration tests (requires Docker services)
+	$(GO) test -tags=integration -v ./...
+
+test-e2e: ## Run end-to-end tests (requires all services running)
+	@echo "⚠️  Ensure all services are running:"
+	@echo "   1. docker-compose up -d"
+	@echo "   2. go run ./cmd/gatify (in separate terminal)"
+	@echo ""
+	$(GO) test -tags=e2e -v ./tests/e2e/ -count=1
+
+test-all: test test-integration test-e2e ## Run all tests (unit, integration, e2e)
+
 lint: ## Run linter
 	golangci-lint run --timeout=5m ./...
 
