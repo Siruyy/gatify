@@ -84,7 +84,7 @@ func New(rules []Rule) (*Matcher, error) {
 		compiled = append(compiled, cr)
 	}
 
-	sort.Slice(compiled, func(i, j int) bool {
+	sort.SliceStable(compiled, func(i, j int) bool {
 		return compiled[i].rule.Priority > compiled[j].rule.Priority
 	})
 
@@ -106,10 +106,13 @@ func (m *Matcher) Match(method, path string) *Match {
 			continue
 		}
 
-		params := make(map[string]string, len(cr.paramNames))
-		for i, name := range cr.paramNames {
-			if i+1 < len(matches) {
-				params[name] = matches[i+1]
+		var params map[string]string
+		if len(cr.paramNames) > 0 {
+			params = make(map[string]string, len(cr.paramNames))
+			for i, name := range cr.paramNames {
+				if i+1 < len(matches) {
+					params[name] = matches[i+1]
+				}
 			}
 		}
 
@@ -126,6 +129,9 @@ func (m *Matcher) Match(method, path string) *Match {
 func compile(r Rule) (compiledRule, error) {
 	if r.Pattern == "" {
 		return compiledRule{}, fmt.Errorf("pattern is required")
+	}
+	if r.IdentifyBy == IdentifyByHeader && r.HeaderName == "" {
+		return compiledRule{}, fmt.Errorf("HeaderName is required when IdentifyBy is %q", IdentifyByHeader)
 	}
 
 	pattern, paramNames, err := patternToRegex(r.Pattern)
@@ -183,6 +189,9 @@ func patternToRegex(pattern string) (string, []string, error) {
 
 		switch {
 		case seg == "*":
+			if i != len(segments)-1 {
+				return "", nil, fmt.Errorf("wildcard (*) must be the last segment")
+			}
 			result.WriteString("(.*)")
 			paramNames = append(paramNames, "*")
 		case strings.HasPrefix(seg, ":"):

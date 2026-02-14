@@ -35,6 +35,7 @@ func TestNew_InvalidPattern(t *testing.T) {
 		{"empty pattern", ""},
 		{"no leading slash", "no-slash"},
 		{"empty param name", "/foo/:"},
+		{"non-terminal wildcard", "/api/*/foo"},
 	}
 
 	for _, tt := range tests {
@@ -44,6 +45,18 @@ func TestNew_InvalidPattern(t *testing.T) {
 				t.Fatalf("expected error for pattern %q", tt.pattern)
 			}
 		})
+	}
+}
+
+func TestNew_HeaderWithoutName(t *testing.T) {
+	_, err := New([]Rule{{
+		Name:       "bad-header",
+		Pattern:    "/api/*",
+		IdentifyBy: IdentifyByHeader,
+		HeaderName: "",
+	}})
+	if err == nil {
+		t.Fatal("expected error when IdentifyBy is header but HeaderName is empty")
 	}
 }
 
@@ -126,6 +139,7 @@ func TestMatch_Wildcard(t *testing.T) {
 		{"/api/health", true, "health"},
 		{"/api/users/42", true, "users/42"},
 		{"/api/", true, ""},
+		{"/api", false, ""},
 		{"/other", false, ""},
 	}
 
