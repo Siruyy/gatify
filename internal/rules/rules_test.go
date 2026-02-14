@@ -36,6 +36,9 @@ func TestNew_InvalidPattern(t *testing.T) {
 		{"no leading slash", "no-slash"},
 		{"empty param name", "/foo/:"},
 		{"non-terminal wildcard", "/api/*/foo"},
+		{"param starts with digit", "/users/:123"},
+		{"param with hyphen", "/users/:foo-bar"},
+		{"param with special chars", "/users/:id@123"},
 	}
 
 	for _, tt := range tests {
@@ -120,6 +123,32 @@ func TestMatch_NamedParameters(t *testing.T) {
 	}
 	if m.Match("GET", "/users/") != nil {
 		t.Fatal("expected no match for /users/")
+	}
+}
+
+func TestMatch_ValidIdentifiers(t *testing.T) {
+	m, err := New([]Rule{
+		defaultRule("underscore", "/api/:_internal", 1),
+		defaultRule("mixed", "/data/:user_id_2", 1),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	result := m.Match("GET", "/api/value")
+	if result == nil {
+		t.Fatal("expected match for /api/value")
+	}
+	if result.Params["_internal"] != "value" {
+		t.Fatalf("expected _internal=value, got %q", result.Params["_internal"])
+	}
+
+	result = m.Match("GET", "/data/123")
+	if result == nil {
+		t.Fatal("expected match for /data/123")
+	}
+	if result.Params["user_id_2"] != "123" {
+		t.Fatalf("expected user_id_2=123, got %q", result.Params["user_id_2"])
 	}
 }
 

@@ -199,6 +199,9 @@ func patternToRegex(pattern string) (string, []string, error) {
 			if name == "" {
 				return "", nil, fmt.Errorf("empty parameter name in pattern")
 			}
+			if !isValidIdentifier(name) {
+				return "", nil, fmt.Errorf("invalid parameter name %q: must start with letter or underscore, followed by letters, digits, or underscores", name)
+			}
 			result.WriteString("([^/]+)")
 			paramNames = append(paramNames, name)
 		default:
@@ -212,4 +215,25 @@ func patternToRegex(pattern string) (string, []string, error) {
 	}
 
 	return result.String(), paramNames, nil
+}
+
+// isValidIdentifier checks if a string is a valid Go-style identifier.
+// Valid identifiers start with a letter or underscore, followed by
+// letters, digits, or underscores.
+func isValidIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		if i == 0 {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_') {
+				return false
+			}
+		} else {
+			if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+				return false
+			}
+		}
+	}
+	return true
 }
