@@ -74,9 +74,17 @@ func TestHealth(t *testing.T) {
 
 // TestRateLimitAllow tests that requests under the limit are allowed
 func TestRateLimitAllow(t *testing.T) {
+	clientIP := fmt.Sprintf("10.10.0.%d", time.Now().UnixNano()%200+1)
+
 	// Make a few requests that should all succeed
 	for i := 0; i < 5; i++ {
-		resp, err := http.Get(gatewayURL + proxyPath + "get")
+		req, err := http.NewRequest(http.MethodGet, gatewayURL+proxyPath+"get", nil)
+		if err != nil {
+			t.Fatalf("Failed to create request %d: %v", i+1, err)
+		}
+		req.Header.Set("X-Forwarded-For", clientIP)
+
+		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatalf("Request %d failed: %v", i+1, err)
 		}
@@ -112,6 +120,8 @@ func TestRateLimitAllow(t *testing.T) {
 func TestRateLimitEnforce(t *testing.T) {
 	// Use a unique client ID per test to avoid interference
 	clientID := fmt.Sprintf("10.0.0.%d", time.Now().UnixNano()%200+1)
+	const maxNetworkErrors = 3
+	var networkErrs atomic.Int32
 
 	// Send many requests quickly to trigger rate limit
 	const numRequests = 150 // Should exceed default limit of 100
@@ -133,7 +143,11 @@ func TestRateLimitEnforce(t *testing.T) {
 
 		resp, err := client.Do(req)
 		if err != nil {
-			t.Logf("Request %d failed: %v", i+1, err)
+			currErrs := networkErrs.Add(1)
+			t.Logf("Request %d failed: %v (network errors: %d)", i+1, err, currErrs)
+			if currErrs > maxNetworkErrors {
+				t.Fatalf("Exceeded max network errors (%d), latest error: %v", maxNetworkErrors, err)
+			}
 			continue
 		}
 
@@ -191,7 +205,7 @@ func TestConcurrentClients(t *testing.T) {
 			defer wg.Done()
 
 			client := &http.Client{Timeout: 5 * time.Second}
-			clientKey := fmt.Sprintf("concurrent-client-%d", id)
+			clientKey := fmt.Sprintf("10.0.1.%d", id+1)
 
 			for reqNum := 0; reqNum < requestsPerClient; reqNum++ {
 				req, err := http.NewRequest(http.MethodGet, gatewayURL+proxyPath+"status/200", nil)
@@ -359,23 +373,20 @@ func TestBackendProxying(t *testing.T) {
 		{"Status 404", http.MethodGet, "status/404", http.StatusNotFound},
 	}
 
-	for _, tt := range tests {
+	runID := time.Now().UnixNano()%200 + 1
+	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req, err := http.NewRequest(tt.method, gatewayURL+proxyPath+tt.path, nil)
 			if err != nil {
 				t.Fatalf("Failed to create request: %v", err)
 			}
+			req.Header.Set("X-Forwarded-For", fmt.Sprintf("10.20.%d.%d", runID, i+1))
 
 			resp, err := http.DefaultClient.Do(req)
 			if err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
 			defer resp.Body.Close()
-
-			// Should not be rate limited (first request for each path)
-			if resp.StatusCode == http.StatusTooManyRequests {
-				t.Skip("Rate limited - test environment may have previous state")
-			}
 
 			if resp.StatusCode != tt.expectedStatus {
 				t.Errorf("Expected status %d, got %d", tt.expectedStatus, resp.StatusCode)
