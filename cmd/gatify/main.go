@@ -51,10 +51,14 @@ func main() {
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ok","service":"gatify"}`))
+	if _, err := w.Write([]byte(`{"status":"ok","service":"gatify"}`)); err != nil {
+		log.Printf("Failed to write response: %v", err)
+	}
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("🛡️  Gatify API Gateway\n"))
+	if _, err := w.Write([]byte("🛡️  Gatify API Gateway\n")); err != nil {
+		log.Printf("Failed to write response: %v", err)
+	}
 }
