@@ -40,6 +40,10 @@ type Storage interface {
 	// GetCount returns the current count for a key within the specified window.
 	GetCount(ctx context.Context, key string, window time.Duration) (int64, error)
 
+	// CheckSlidingWindow performs a sliding-window rate limit check and increments
+	// the current window counter if allowed.
+	CheckSlidingWindow(ctx context.Context, key string, limit int64, window time.Duration) (Result, error)
+
 	// Reset removes all rate limiting state for the given key.
 	Reset(ctx context.Context, key string) error
 
