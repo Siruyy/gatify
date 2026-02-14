@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -162,6 +164,80 @@ func (rs *RedisStorage) GetCount(ctx context.Context, key string, window time.Du
 	return count, nil
 }
 
+// CheckSlidingWindow performs a sliding-window counter check and, if allowed,
+// increments the current window atomically.
+func (rs *RedisStorage) CheckSlidingWindow(ctx context.Context, key string, limit int64, window time.Duration) (Result, error) {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	if rs.closed {
+		return Result{}, ErrStorageClosed
+	}
+
+	if limit <= 0 {
+		return Result{}, fmt.Errorf("redis: invalid limit %d", limit)
+	}
+	if window <= 0 {
+		return Result{}, fmt.Errorf("redis: invalid window %v", window)
+	}
+
+	nowMs := time.Now().UnixMilli()
+	windowMs := window.Milliseconds()
+	bucket := nowMs / windowMs
+	elapsedMs := nowMs % windowMs
+
+	currentKey := fmt.Sprintf("ratelimit:{%s}:%d", key, bucket)
+	previousKey := fmt.Sprintf("ratelimit:{%s}:%d", key, bucket-1)
+
+	raw, err := rs.scripts.slidingWindowCheck.Run(ctx, rs.client,
+		[]string{currentKey, previousKey},
+		windowMs,
+		elapsedMs,
+		limit,
+	).Result()
+	if err != nil {
+		return Result{}, fmt.Errorf("redis: sliding window check failed for key %q: %w", key, err)
+	}
+
+	values, ok := raw.([]interface{})
+	if !ok || len(values) != 3 {
+		return Result{}, fmt.Errorf("redis: sliding window script returned unexpected result: %T", raw)
+	}
+
+	allowedFlag, err := toInt64(values[0])
+	if err != nil {
+		return Result{}, fmt.Errorf("redis: invalid allowed flag from script: %w", err)
+	}
+	currentCount, err := toInt64(values[1])
+	if err != nil {
+		return Result{}, fmt.Errorf("redis: invalid current count from script: %w", err)
+	}
+	previousCount, err := toInt64(values[2])
+	if err != nil {
+		return Result{}, fmt.Errorf("redis: invalid previous count from script: %w", err)
+	}
+
+	weight := 1 - (float64(elapsedMs) / float64(windowMs))
+	if weight < 0 {
+		weight = 0
+	}
+	weightedPrevious := int64(math.Floor(float64(previousCount) * weight))
+	estimated := weightedPrevious + currentCount
+	remaining := limit - estimated
+	if remaining < 0 {
+		remaining = 0
+	}
+	resetAt := time.UnixMilli(nowMs - elapsedMs + windowMs)
+
+	return Result{
+		Count:     estimated,
+		Limit:     limit,
+		Remaining: remaining,
+		ResetAt:   resetAt,
+		Allowed:   allowedFlag == 1,
+	}, nil
+}
+
 // Reset removes all rate limiting state associated with the given key.
 // It deletes all keys matching the pattern "ratelimit:{key}:*".
 func (rs *RedisStorage) Reset(ctx context.Context, key string) error {
@@ -271,4 +347,19 @@ func windowedKey(key string, window time.Duration) string {
 func windowedKeyAt(key string, window time.Duration, nowMilli int64) string {
 	bucket := nowMilli / window.Milliseconds()
 	return fmt.Sprintf("ratelimit:{%s}:%d", key, bucket)
+}
+
+func toInt64(v interface{}) (int64, error) {
+	switch n := v.(type) {
+	case int64:
+		return n, nil
+	case int:
+		return int64(n), nil
+	case float64:
+		return int64(n), nil
+	case string:
+		return strconv.ParseInt(n, 10, 64)
+	default:
+		return 0, fmt.Errorf("unsupported type %T", v)
+	}
 }
