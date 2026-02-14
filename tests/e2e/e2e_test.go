@@ -80,7 +80,6 @@ func TestRateLimitAllow(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Request %d failed: %v", i+1, err)
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusTooManyRequests {
 			t.Errorf("Request %d was rate limited unexpectedly", i+1)
@@ -100,6 +99,10 @@ func TestRateLimitAllow(t *testing.T) {
 		t.Logf("Request %d: Status=%d, Remaining=%s",
 			i+1, resp.StatusCode, resp.Header.Get("X-RateLimit-Remaining"))
 
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Logf("failed to close response body on request %d: %v", i+1, closeErr)
+		}
+
 		// Brief pause between requests
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -108,7 +111,7 @@ func TestRateLimitAllow(t *testing.T) {
 // TestRateLimitEnforce tests that the rate limiter blocks excess requests
 func TestRateLimitEnforce(t *testing.T) {
 	// Use a unique client ID per test to avoid interference
-	clientID := fmt.Sprintf("test-client-%d", time.Now().UnixNano())
+	clientID := fmt.Sprintf("10.0.0.%d", time.Now().UnixNano()%200+1)
 
 	// Send many requests quickly to trigger rate limit
 	const numRequests = 150 // Should exceed default limit of 100
@@ -272,7 +275,10 @@ func TestDifferentClientIPs(t *testing.T) {
 
 	// Make requests from client 1
 	for i := 0; i < 5; i++ {
-		req, _ := http.NewRequest(http.MethodGet, gatewayURL+proxyPath+"status/200", nil)
+		req, err := http.NewRequest(http.MethodGet, gatewayURL+proxyPath+"status/200", nil)
+		if err != nil {
+			t.Fatalf("Client 1 request %d failed to create request: %v", i+1, err)
+		}
 		req.Header.Set("X-Forwarded-For", client1IP)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -288,7 +294,10 @@ func TestDifferentClientIPs(t *testing.T) {
 
 	// Make requests from client 2 - should have its own limit
 	for i := 0; i < 5; i++ {
-		req, _ := http.NewRequest(http.MethodGet, gatewayURL+proxyPath+"status/200", nil)
+		req, err := http.NewRequest(http.MethodGet, gatewayURL+proxyPath+"status/200", nil)
+		if err != nil {
+			t.Fatalf("Client 2 request %d failed to create request: %v", i+1, err)
+		}
 		req.Header.Set("X-Forwarded-For", client2IP)
 
 		resp, err := http.DefaultClient.Do(req)
@@ -336,10 +345,10 @@ func TestBackendProxying(t *testing.T) {
 		path           string
 		expectedStatus int
 	}{
-		{"GET request", http.MethodGet, "/get", http.StatusOK},
-		{"POST request", http.MethodPost, "/post", http.StatusOK},
-		{"Status 200", http.MethodGet, "/status/200", http.StatusOK},
-		{"Status 404", http.MethodGet, "/status/404", http.StatusNotFound},
+		{"GET request", http.MethodGet, "get", http.StatusOK},
+		{"POST request", http.MethodPost, "post", http.StatusOK},
+		{"Status 200", http.MethodGet, "status/200", http.StatusOK},
+		{"Status 404", http.MethodGet, "status/404", http.StatusNotFound},
 	}
 
 	for _, tt := range tests {
