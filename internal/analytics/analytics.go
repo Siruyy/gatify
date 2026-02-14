@@ -184,7 +184,11 @@ func (l *Logger) flush(events []Event) {
 		log.Printf("analytics: failed to begin transaction: %v", err)
 		return
 	}
-	defer tx.Rollback() // Rollback if not committed
+	defer func() {
+		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
+			log.Printf("analytics: failed to rollback transaction: %v", err)
+		}
+	}()
 	
 	// Prepare insert statement
 	stmt, err := tx.PrepareContext(ctx, `

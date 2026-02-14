@@ -2,32 +2,11 @@ package analytics
 
 import (
 	"context"
-	"database/sql"
-	"sync"
 	"testing"
 	"time"
 
 	_ "github.com/lib/pq"
 )
-
-// mockDB is a minimal mock that tracks calls without needing a real database
-type mockDB struct {
-	mu            sync.Mutex
-	insertedCount int
-	beginErr      error
-	prepareErr    error
-	execErr       error
-	commitErr     error
-}
-
-func (m *mockDB) BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error) {
-	if m.beginErr != nil {
-		return nil, m.beginErr
-	}
-	// Note: Cannot easily mock sql.Tx without reflection or more complex setup
-	// For now, we'll use integration tests with a real test database
-	return nil, sql.ErrConnDone // Indicate we need a real DB for full tests
-}
 
 func TestNew(t *testing.T) {
 	tests := []struct {
