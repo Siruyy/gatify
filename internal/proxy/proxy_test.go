@@ -33,6 +33,16 @@ func TestNew_Validation(t *testing.T) {
 	if _, err := New(nil, nil); err == nil {
 		t.Fatal("expected error when target is nil")
 	}
+
+	badScheme, _ := url.Parse("ftp://example.com")
+	if _, err := New(badScheme, nil); err == nil {
+		t.Fatal("expected error for non-http scheme")
+	}
+
+	noHost, _ := url.Parse("http://")
+	if _, err := New(noHost, nil); err == nil {
+		t.Fatal("expected error for missing host")
+	}
 }
 
 func TestServeHTTP_AllowsAndProxies(t *testing.T) {
@@ -81,7 +91,9 @@ func TestServeHTTP_AllowsAndProxies(t *testing.T) {
 }
 
 func TestServeHTTP_RateLimited(t *testing.T) {
+	backendCalled := false
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		backendCalled = true
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer backend.Close()
@@ -119,10 +131,15 @@ func TestServeHTTP_RateLimited(t *testing.T) {
 	if got := res.Header().Get("X-RateLimit-Remaining"); got != "0" {
 		t.Fatalf("expected X-RateLimit-Remaining=0, got %q", got)
 	}
+	if backendCalled {
+		t.Fatal("backend should not be called when rate limited")
+	}
 }
 
 func TestServeHTTP_LimiterError(t *testing.T) {
+	backendCalled := false
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		backendCalled = true
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer backend.Close()
@@ -146,14 +163,33 @@ func TestServeHTTP_LimiterError(t *testing.T) {
 	if !strings.Contains(res.Body.String(), "rate limiter unavailable") {
 		t.Fatalf("expected limiter unavailable message, got %q", res.Body.String())
 	}
+	if backendCalled {
+		t.Fatal("backend should not be called when limiter errors")
+	}
 }
 
-func TestClientKeyFromForwardedFor(t *testing.T) {
+func TestClientKey_TrustProxy(t *testing.T) {
+	targetURL, _ := url.Parse("http://127.0.0.1:9999")
+	gp, _ := New(targetURL, nil, WithTrustProxy(true))
+
 	req := httptest.NewRequest(http.MethodGet, "http://gatify.local/x", nil)
 	req.Header.Set("X-Forwarded-For", "8.8.8.8, 10.0.0.1")
 	req.RemoteAddr = "127.0.0.1:5555"
 
-	if got := clientKey(req); got != "8.8.8.8" {
-		t.Fatalf("expected forwarded client key, got %q", got)
+	if got := gp.clientKey(req); got != "8.8.8.8" {
+		t.Fatalf("expected forwarded client key with trust proxy, got %q", got)
+	}
+}
+
+func TestClientKey_NoTrustProxy(t *testing.T) {
+	targetURL, _ := url.Parse("http://127.0.0.1:9999")
+	gp, _ := New(targetURL, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "http://gatify.local/x", nil)
+	req.Header.Set("X-Forwarded-For", "8.8.8.8, 10.0.0.1")
+	req.RemoteAddr = "127.0.0.1:5555"
+
+	if got := gp.clientKey(req); got != "127.0.0.1" {
+		t.Fatalf("expected RemoteAddr key without trust proxy, got %q", got)
 	}
 }

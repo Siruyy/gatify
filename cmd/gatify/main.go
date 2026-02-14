@@ -60,7 +60,9 @@ func main() {
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/", rootHandler)
 	mux.Handle("/proxy/", http.StripPrefix("/proxy", gatewayProxy))
-	mux.Handle("/proxy", http.StripPrefix("/proxy", gatewayProxy))
+	mux.HandleFunc("/proxy", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/proxy/", http.StatusMovedPermanently)
+	})
 
 	server := &http.Server{
 		Addr:         ":3000",
