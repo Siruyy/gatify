@@ -50,7 +50,9 @@ func main() {
 		log.Fatalf("invalid BACKEND_URL %q: %v", targetURLRaw, err)
 	}
 
-	gatewayProxy, err := proxy.New(targetURL, lim)
+	// Enable trust proxy to use X-Forwarded-For headers
+	trustProxy := getEnv("TRUST_PROXY", "false") == "true"
+	gatewayProxy, err := proxy.New(targetURL, lim, proxy.WithTrustProxy(trustProxy))
 	if err != nil {
 		log.Fatalf("failed to initialize gateway proxy: %v", err)
 	}
