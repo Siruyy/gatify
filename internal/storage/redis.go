@@ -224,17 +224,38 @@ func (rs *RedisStorage) Close() error {
 	rs.closed = true
 	log.Println("redis: closing connection")
 
-	return rs.client.Close()
+	if rs.client == nil {
+		return nil
+	}
+
+	err := rs.client.Close()
+	rs.client = nil
+
+	return err
 }
 
 // Client returns the underlying Redis client for advanced usage.
 // Use with caution - prefer the Storage interface methods.
 func (rs *RedisStorage) Client() *redis.Client {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	if rs.closed {
+		return nil
+	}
+
 	return rs.client
 }
 
 // PoolStats returns the current connection pool statistics.
 func (rs *RedisStorage) PoolStats() *redis.PoolStats {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	if rs.closed || rs.client == nil {
+		return nil
+	}
+
 	return rs.client.PoolStats()
 }
 
@@ -242,6 +263,12 @@ func (rs *RedisStorage) PoolStats() *redis.PoolStats {
 // The window bucket is calculated from the current time, so keys naturally
 // expire and rotate as time progresses.
 func windowedKey(key string, window time.Duration) string {
-	bucket := time.Now().UnixMilli() / window.Milliseconds()
+	return windowedKeyAt(key, window, time.Now().UnixMilli())
+}
+
+// windowedKeyAt builds the same key as windowedKey but allows callers
+// (primarily tests) to provide a fixed timestamp in milliseconds.
+func windowedKeyAt(key string, window time.Duration, nowMilli int64) string {
+	bucket := nowMilli / window.Milliseconds()
 	return fmt.Sprintf("ratelimit:{%s}:%d", key, bucket)
 }

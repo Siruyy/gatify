@@ -8,9 +8,10 @@ import (
 func TestWindowedKey(t *testing.T) {
 	key := "test-client"
 	window := 60 * time.Second
+	nowMs := int64(1700000000123)
 
-	k1 := windowedKey(key, window)
-	k2 := windowedKey(key, window)
+	k1 := windowedKeyAt(key, window, nowMs)
+	k2 := windowedKeyAt(key, window, nowMs)
 
 	// Same key within the same window bucket should produce the same result.
 	if k1 != k2 {
@@ -23,7 +24,7 @@ func TestWindowedKey(t *testing.T) {
 	}
 
 	// Different keys should produce different windowed keys.
-	k3 := windowedKey("other-client", window)
+	k3 := windowedKeyAt("other-client", window, nowMs)
 	if k1 == k3 {
 		t.Errorf("windowedKey produced same key for different clients: %q", k1)
 	}
