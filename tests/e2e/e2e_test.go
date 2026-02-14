@@ -137,10 +137,14 @@ func TestRateLimitEnforce(t *testing.T) {
 			continue
 		}
 
-		if resp.StatusCode == http.StatusTooManyRequests {
-			blocked.Add(1)
-		} else {
+		switch resp.StatusCode {
+		case http.StatusOK:
 			allowed.Add(1)
+		case http.StatusTooManyRequests:
+			blocked.Add(1)
+		default:
+			_ = resp.Body.Close()
+			t.Fatalf("Request %d returned unexpected status code: %d", i+1, resp.StatusCode)
 		}
 
 		resp.Body.Close()
@@ -236,16 +240,20 @@ func TestConcurrentClients(t *testing.T) {
 
 		if result.err != nil {
 			errorCount++
-			t.Logf("Client %d error: %v", result.clientID, result.err)
+			t.Errorf("Client %d request failed: %v", result.clientID, result.err)
 			continue
 		}
 
 		totalDuration += result.duration
 
-		if result.statusCode == http.StatusOK {
+		switch result.statusCode {
+		case http.StatusOK:
 			successCount++
-		} else if result.statusCode == http.StatusTooManyRequests {
+		case http.StatusTooManyRequests:
 			rateLimitCount++
+		default:
+			errorCount++
+			t.Errorf("Client %d got unexpected status code: %d", result.clientID, result.statusCode)
 		}
 	}
 
