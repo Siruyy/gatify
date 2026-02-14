@@ -1,0 +1,18 @@
+# CODEOWNERS for Gatify
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for everything
+* @Siruyy
+
+# Core gateway components
+/cmd/ @Siruyy
+/internal/ @Siruyy
+
+# Configuration and infrastructure
+/.github/ @Siruyy
+/docker-compose.yml @Siruyy
+/Makefile @Siruyy
+
+# Documentation
+/docs/ @Siruyy
+*.md @Siruyy

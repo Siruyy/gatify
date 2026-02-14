@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  # Redis for rate limiting state
+  redis:
+    image: redis:7-alpine
+    container_name: gatify-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # TimescaleDB for analytics
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: gatify-timescaledb
+    environment:
+      POSTGRES_DB: gatify
+      POSTGRES_USER: gatify
+      POSTGRES_PASSWORD: gatify_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gatify"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Test backend service (for development)
+  test-backend:
+    image: kennethreitz/httpbin
+    container_name: gatify-test-backend
+    ports:
+      - "8080:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/status/200"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # Gatify Gateway (will be built and added later)
+  # gatify:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: gatify-gateway
+  #   ports:
+  #     - "3000:3000"
+  #     - "3001:3001"  # Management API
+  #   environment:
+  #     - REDIS_URL=redis://redis:6379
+  #     - DATABASE_URL=postgres://gatify:gatify_dev_password@timescaledb:5432/gatify
+  #     - BACKEND_URL=http://test-backend:80
+  #     - LOG_LEVEL=debug
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #     timescaledb:
+  #       condition: service_healthy
+  #     test-backend:
+  #       condition: service_healthy
+
+volumes:
+  redis-data:
+  timescaledb-data:
