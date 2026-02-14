@@ -276,6 +276,9 @@ func TestConcurrentClients(t *testing.T) {
 	t.Logf("  Successful: %d", successCount)
 	t.Logf("  Rate limited: %d", rateLimitCount)
 	t.Logf("  Errors: %d", errorCount)
+	if totalRequests == 0 {
+		t.Fatalf("No concurrent test results were collected; cannot compute average latency")
+	}
 	t.Logf("  Average latency: %v", totalDuration/time.Duration(totalRequests))
 
 	// Verify most requests succeeded
@@ -338,7 +341,13 @@ func TestDifferentClientIPs(t *testing.T) {
 
 // TestResponseHeaders verifies that all expected headers are present
 func TestResponseHeaders(t *testing.T) {
-	resp, err := http.Get(gatewayURL + proxyPath + "headers")
+	req, err := http.NewRequest(http.MethodGet, gatewayURL+proxyPath+"headers", nil)
+	if err != nil {
+		t.Fatalf("Failed to create request: %v", err)
+	}
+	req.Header.Set("X-Forwarded-For", fmt.Sprintf("10.30.0.%d", time.Now().UnixNano()%200+1))
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}
