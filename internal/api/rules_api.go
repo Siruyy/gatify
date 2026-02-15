@@ -299,7 +299,9 @@ func decodeJSON(r *http.Request, dst any) error {
 		return fmt.Errorf("invalid JSON: %w", err)
 	}
 
-	if err := dec.Decode(&struct{}{}); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, io.EOF) {
+	if err := dec.Decode(&struct{}{}); err == nil {
+		return fmt.Errorf("request body must contain a single JSON object")
+	} else if !errors.Is(err, io.EOF) {
 		return fmt.Errorf("request body must contain a single JSON object")
 	}
 
