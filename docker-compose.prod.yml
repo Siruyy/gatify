@@ -1,0 +1,78 @@
+services:
+  gatify:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gatify-gateway
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
+      BACKEND_URL: ${BACKEND_URL:-http://test-backend:8080}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-100}
+      RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN}
+    depends_on:
+      redis:
+        condition: service_healthy
+      test-backend:
+        condition: service_started
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - gatify-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: gatify-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - gatify-net
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: gatify-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gatify
+      POSTGRES_USER: gatify
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gatify"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - gatify-net
+
+  # Demo backend for smoke-testing the proxy in single-host deployments.
+  # Set BACKEND_URL to your real upstream and remove this service in production.
+  test-backend:
+    image: mccutchen/go-httpbin
+    container_name: gatify-test-backend
+    restart: unless-stopped
+    networks:
+      - gatify-net
+
+networks:
+  gatify-net:
+    driver: bridge
+
+volumes:
+  redis-data:
+  timescaledb-data:
