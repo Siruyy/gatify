@@ -244,11 +244,24 @@ func (h *RulesHandler) handleItem(w http.ResponseWriter, r *http.Request, id str
 
 		writeJSON(w, http.StatusOK, map[string]any{"data": rule})
 	case http.MethodPut:
+		existing, err := h.repo.GetByID(r.Context(), id)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				writeJSON(w, http.StatusNotFound, map[string]string{"error": "rule not found"})
+				return
+			}
+
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get rule"})
+			return
+		}
+
 		var req RuleRequest
 		if err := decodeJSON(r, &req); err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
+
+		req = mergeRuleRequestWithExisting(req, existing)
 
 		rule, err := validateAndBuildRule(req)
 		if err != nil {
@@ -414,6 +427,29 @@ func cloneRule(rule Rule) Rule {
 		copyRule.Methods = append([]string(nil), rule.Methods...)
 	}
 	return copyRule
+}
+
+func mergeRuleRequestWithExisting(req RuleRequest, existing Rule) RuleRequest {
+	merged := req
+
+	if merged.Methods == nil {
+		merged.Methods = append([]string(nil), existing.Methods...)
+	}
+
+	if strings.TrimSpace(merged.IdentifyBy) == "" {
+		merged.IdentifyBy = existing.IdentifyBy
+	}
+
+	if strings.TrimSpace(merged.HeaderName) == "" && strings.EqualFold(merged.IdentifyBy, string(rules.IdentifyByHeader)) {
+		merged.HeaderName = existing.HeaderName
+	}
+
+	if merged.Enabled == nil {
+		enabled := existing.Enabled
+		merged.Enabled = &enabled
+	}
+
+	return merged
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

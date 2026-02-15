@@ -141,6 +141,60 @@ func TestRulesAPI_NotFound(t *testing.T) {
 	}
 }
 
+func TestRulesAPI_UpdatePreservesOmittedOptionalFields(t *testing.T) {
+	h := NewRulesHandler(NewInMemoryRepository())
+
+	createBody := `{
+		"name": "users-limit",
+		"pattern": "/api/users/:id",
+		"methods": ["GET", "POST"],
+		"priority": 10,
+		"limit": 100,
+		"window_seconds": 60,
+		"identify_by": "header",
+		"header_name": "X-API-Key",
+		"enabled": false
+	}`
+
+	createResp := performRequest(t, h, http.MethodPost, "/api/rules", createBody)
+	if createResp.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusCreated, createResp.Code, createResp.Body.String())
+	}
+
+	created := decodeDataRule(t, createResp.Body.Bytes())
+
+	// Omit methods/identify_by/header_name/enabled and ensure existing values are preserved.
+	updateBody := `{
+		"name": "users-limit-updated",
+		"pattern": "/api/users/:id",
+		"priority": 20,
+		"limit": 250,
+		"window_seconds": 120
+	}`
+
+	updateResp := performRequest(t, h, http.MethodPut, "/api/rules/"+created.ID, updateBody)
+	if updateResp.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusOK, updateResp.Code, updateResp.Body.String())
+	}
+
+	updated := decodeDataRule(t, updateResp.Body.Bytes())
+	if updated.Name != "users-limit-updated" {
+		t.Fatalf("expected updated name, got %q", updated.Name)
+	}
+	if updated.IdentifyBy != "header" {
+		t.Fatalf("expected identify_by to remain header, got %q", updated.IdentifyBy)
+	}
+	if updated.HeaderName != "X-API-Key" {
+		t.Fatalf("expected header_name to remain X-API-Key, got %q", updated.HeaderName)
+	}
+	if len(updated.Methods) != 2 || updated.Methods[0] != "GET" || updated.Methods[1] != "POST" {
+		t.Fatalf("expected methods to remain [GET POST], got %v", updated.Methods)
+	}
+	if updated.Enabled != false {
+		t.Fatalf("expected enabled to remain false, got %v", updated.Enabled)
+	}
+}
+
 func TestRulesAPI_TrailingSlashCollection(t *testing.T) {
 	h := NewRulesHandler(NewInMemoryRepository())
 
