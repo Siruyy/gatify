@@ -141,6 +141,29 @@ func TestRulesAPI_NotFound(t *testing.T) {
 	}
 }
 
+func TestRulesAPI_TrailingSlashCollection(t *testing.T) {
+	h := NewRulesHandler(NewInMemoryRepository())
+
+	resp := performRequest(t, h, http.MethodGet, "/api/rules/", "")
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusOK, resp.Code, resp.Body.String())
+	}
+
+	list := decodeDataRules(t, resp.Body.Bytes())
+	if len(list) != 0 {
+		t.Fatalf("expected empty list, got %d", len(list))
+	}
+}
+
+func TestRulesAPI_NestedIDPathNotFound(t *testing.T) {
+	h := NewRulesHandler(NewInMemoryRepository())
+
+	resp := performRequest(t, h, http.MethodGet, "/api/rules/a/b", "")
+	if resp.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, resp.Code)
+	}
+}
+
 func performRequest(t *testing.T, h http.Handler, method, path, body string) *httptest.ResponseRecorder {
 	t.Helper()
 

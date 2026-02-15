@@ -174,7 +174,11 @@ func (h *RulesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	case strings.HasPrefix(path, "/api/rules/"):
 		id := strings.TrimPrefix(path, "/api/rules/")
-		if id == "" || strings.Contains(id, "/") {
+		if id == "" {
+			h.handleCollection(w, r)
+			return
+		}
+		if strings.Contains(id, "/") {
 			http.NotFound(w, r)
 			return
 		}
