@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Siruyy/gatify/internal/api"
 	"github.com/Siruyy/gatify/internal/limiter"
 	"github.com/Siruyy/gatify/internal/proxy"
 	"github.com/Siruyy/gatify/internal/storage"
@@ -57,10 +58,15 @@ func main() {
 		log.Fatalf("failed to initialize gateway proxy: %v", err)
 	}
 
+	rulesRepo := api.NewInMemoryRepository()
+	rulesHandler := api.NewRulesHandler(rulesRepo)
+
 	// Temporary HTTP server for testing
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/", rootHandler)
+	mux.Handle("/api/rules", rulesHandler)
+	mux.Handle("/api/rules/", rulesHandler)
 	mux.Handle("/proxy/", http.StripPrefix("/proxy", gatewayProxy))
 	mux.HandleFunc("/proxy", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/proxy/", http.StatusMovedPermanently)
