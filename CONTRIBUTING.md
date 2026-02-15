@@ -1,6 +1,6 @@
 # Contributing to Gatify
 
-Thank you for considering contributing to Gatify! 🎉
+Thank you for considering contributing to Gatify.
 
 ## Development Process
 
@@ -43,7 +43,7 @@ make lint
 
 We follow [Conventional Commits](https://www.conventionalcommits.org/) for clear git history:
 
-```
+```text
 <type>(<scope>): <description>
 
 [optional body]
@@ -64,7 +64,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/) for clear
 
 ### Examples
 
-```
+```text
 feat(gateway): implement sliding window rate limiter
 fix(redis): handle connection timeout gracefully
 docs: add installation guide
@@ -75,6 +75,7 @@ test(proxy): add integration tests for reverse proxy
 ## Pull Request Process
 
 1. **Create a feature branch from `dev`**:
+
    ```bash
    git checkout dev
    git pull origin dev
@@ -88,18 +89,21 @@ test(proxy): add integration tests for reverse proxy
    - Run `make check` before committing
 
 3. **Commit your changes**:
+
    ```bash
    git add .
    git commit -m "feat(component): add new feature"
    ```
 
 4. **Push and create PR**:
+
    ```bash
    git push origin feature/gat-XX-description
    ```
+
    - Open PR against `dev` branch
    - Fill out the PR template
-   - Link related Linear issue (GAT-XX)
+   - Link related GitHub issue (e.g., `Closes #123`)
 
 5. **Code Review**:
    - Address review comments
@@ -127,18 +131,18 @@ test(proxy): add integration tests for reverse proxy
 
 ## Issue Tracking
 
-We use Linear for issue tracking. When contributing:
+We use GitHub Issues for public collaboration. When contributing:
 
-1. Check existing issues: https://linear.app/siruyy/project/gatify
+1. Check existing issues: [GitHub Issues](https://github.com/Siruyy/gatify/issues)
 2. Comment on the issue you'd like to work on
-3. Reference the issue in your PR (e.g., "Closes GAT-5")
+3. Reference the issue in your PR (e.g., "Closes #123")
 
 ## Questions?
 
-- 📧 Email: nulysses.roda@siruyy.dev
-- 💬 [GitHub Discussions](https://github.com/Siruyy/gatify/discussions)
-- 🐛 [Report Issues](https://github.com/Siruyy/gatify/issues)
+- Email: [nulysses.roda@siruyy.dev](mailto:nulysses.roda@siruyy.dev)
+- [GitHub Discussions](https://github.com/Siruyy/gatify/discussions)
+- [Report Issues](https://github.com/Siruyy/gatify/issues)
 
 ## Code of Conduct
 
-Be respectful, inclusive, and professional. We're all here to build something great together! 🚀
+Be respectful, inclusive, and professional. We're all here to build something great together.

@@ -1,136 +1,76 @@
-# Gatify 🛡️
+# Gatify
 
-**Self-hosted API Gateway with intelligent rate limiting, real-time analytics, and zero vendor lock-in.**
+[![Documentation](https://img.shields.io/badge/documentation-available-blue)](docs/README.md)
 
-> ⚠️ **Early Development**: Gatify is currently in active development. Not production-ready yet!
+Self-hosted API Gateway with rate limiting, reverse proxying, and management APIs.
 
-## Features
+> **Early development**: Gatify is under active development and not yet production-ready.
 
-- 🚀 **High Performance** - Handle 10K+ requests per second with sub-millisecond latency
-- 🎯 **Smart Rate Limiting** - Sliding window algorithm with Redis backend
-- 📊 **Real-time Analytics** - Live dashboard with traffic insights
-- 🔧 **Self-Hosted** - Full control over your infrastructure
-- 🐳 **Easy Deployment** - One-command Docker Compose setup
-- 🌐 **HTTP Reverse Proxy** - Seamless integration with your backend services
+## Demo
 
-## Quick Start
+- Demo video: _coming soon_ (tracked in docs roadmap)
 
-```bash
-# Clone the repository
-git clone https://github.com/Siruyy/gatify.git
-cd gatify
+## What you get
 
-# Start all services (Redis, TimescaleDB, Gatify)
-docker-compose up -d
+- Sliding-window request limiting backed by Redis
+- Reverse proxy mode for upstream backends
+- Rules CRUD API (`/api/rules`)
+- Unit/integration/e2e test suites
+- Container-friendly local setup via Docker Compose
 
-# View logs
-docker-compose logs -f gatify
-```
+## 5-minute quick start
 
-## Development
+1. Clone and enter the repository.
+2. Copy env defaults:
+     - `cp .env.example .env`
+3. Start infrastructure:
+     - `make dev`
+4. Run the gateway:
+     - `go run ./cmd/gatify`
+5. Verify:
+     - `curl http://localhost:3000/health`
 
-### Prerequisites
+The gateway serves:
 
-- Go 1.22+
-- Docker & Docker Compose
-- Make
+- Health: `GET /health`
+- Proxy: `/{proxy path under /proxy/...}`
+- Rules management API: `/api/rules` (requires `ADMIN_API_TOKEN`)
 
-### Setup
+## Documentation
 
-```bash
-# Install dependencies
-make deps
+- [Documentation index](docs/README.md)
+- [Installation guide](docs/installation.md)
+- [Configuration reference](docs/configuration.md)
+- [API reference](docs/api/README.md)
+- [OpenAPI spec](docs/api/openapi.yaml)
+- [Architecture notes](docs/architecture.md)
+- [Local walkthrough tutorial](docs/tutorials/local-gateway-walkthrough.md)
+- [FAQ](docs/faq.md)
+- [Support](SUPPORT.md)
+- [Security policy](SECURITY.md)
+- [Contributing guide](CONTRIBUTING.md)
 
-# Run tests
-make test
+## Developer workflow
 
-# Run linter
-make lint
+- Install deps: `make deps`
+- Lint: `make lint`
+- Test: `make test`
+- Full checks: `make check`
+- E2E tests: `make test-e2e`
+- Load tests: `make test-load-quick`
 
-# Build binary
-make build
+## Project roadmap
 
-# Start development environment
-make dev
+Track progress in GitHub:
 
-# Run performance tests (k6)
-make test-load-quick
-```
-
-## Performance & Load Testing (k6)
-
-Gatify includes a k6 load test at `tests/load/k6_gateway.js`.
-
-- `make test-load-quick` — fast local validation (used in CI)
-- `make test-load` — full local scenario suite
-- `make test-load-live` — run against `https://api.siruyy.cloud`
-
-### Scenarios
-
-- `smoke`: gateway health and basic proxy checks
-- `load`: sustained concurrent traffic
-- `rate_limit`: burst traffic that should trigger `429` responses
-
-### Latest baseline (local run against live gateway)
-
-- Total requests: `18,234`
-- Blocked (`429`): `6,804` (`37.3%`)
-- p95 latency: `460.92 ms`
-
-This demonstrates that rate limiting is enforced under burst traffic while keeping sub-second p95 latency in the tested environment.
-
-## Project Status
-
-Gatify is being built in public! Check out the [development roadmap](https://linear.app/siruyy/project/gatify-9245f3b8fbcf) for current progress.
-
-**Current Phase**: Core Gateway Development (Phase 1)
-
-- [x] Project setup
-- [ ] Sliding window rate limiter
-- [ ] Redis storage backend
-- [ ] HTTP reverse proxy
-- [ ] Rule matching engine
-- [ ] Analytics logging
-
-## Architecture
-
-```text
-┌─────────────┐
-│   Client    │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────────────────┐
-│        Gatify Gateway           │
-│  ┌──────────────────────────┐  │
-│  │   Rate Limit Middleware  │  │
-│  └──────────────────────────┘  │
-│  ┌──────────────────────────┐  │
-│  │    Reverse Proxy         │  │
-│  └──────────────────────────┘  │
-└────┬──────────────────────┬─────┘
-     │                      │
-     ▼                      ▼
-┌──────────┐          ┌──────────┐
-│  Redis   │          │TimescaleDB│
-│ (State)  │          │(Analytics)│
-└──────────┘          └──────────┘
-```
-
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+- [Issues](https://github.com/Siruyy/gatify/issues)
+- [Pull Requests](https://github.com/Siruyy/gatify/pulls)
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).
 
 ## Support
 
-- 📧 Email: [nulysses.roda@siruyy.dev](mailto:nulysses.roda@siruyy.dev)
-- 🐛 [Report Issues](https://github.com/Siruyy/gatify/issues)
-- 💬 [Discussions](https://github.com/Siruyy/gatify/discussions)
-
----
-
-Built with ❤️ by [Neria](https://github.com/Siruyy)
+- For usage questions and troubleshooting, see [SUPPORT.md](SUPPORT.md).
+- For vulnerability reports, see [SECURITY.md](SECURITY.md).
