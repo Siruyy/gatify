@@ -9,6 +9,8 @@ Welcome to the Gatify docs.
 - [API reference](./api/README.md)
 - [OpenAPI specification](./api/openapi.yaml)
 - [Architecture](./architecture.md)
+- [Deployment guide](./deployment.md)
+- [Deployment troubleshooting](./deployment-troubleshooting.md)
 - [Tutorial: run gateway locally](./tutorials/local-gateway-walkthrough.md)
 - [FAQ](./faq.md)
 - [Support policy](../SUPPORT.md)
