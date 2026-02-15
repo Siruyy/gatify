@@ -41,9 +41,9 @@ services:
       dockerfile: Dockerfile
     container_name: gatify-gateway
     environment:
-      - REDIS_ADDR=redis:6379
-      - BACKEND_URL=http://test-backend:8080
-      - TRUST_PROXY=true
+      - REDIS_ADDR=${REDIS_ADDR:-redis:6379}
+      - BACKEND_URL=${BACKEND_URL:-http://test-backend:8080}
+      - TRUST_PROXY=${TRUST_PROXY:-true}
     depends_on:
       redis:
         condition: service_healthy
