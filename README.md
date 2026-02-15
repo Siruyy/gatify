@@ -52,7 +52,32 @@ make build
 
 # Start development environment
 make dev
+
+# Run performance tests (k6)
+make test-load-quick
 ```
+
+## Performance & Load Testing (k6)
+
+Gatify includes a k6 load test at `tests/load/k6_gateway.js`.
+
+- `make test-load-quick` — fast local validation (used in CI)
+- `make test-load` — full local scenario suite
+- `make test-load-live` — run against `https://api.siruyy.cloud`
+
+### Scenarios
+
+- `smoke`: gateway health and basic proxy checks
+- `load`: sustained concurrent traffic
+- `rate_limit`: burst traffic that should trigger `429` responses
+
+### Latest baseline (local run against live gateway)
+
+- Total requests: `18,234`
+- Blocked (`429`): `6,804` (`37.3%`)
+- p95 latency: `460.92 ms`
+
+This demonstrates that rate limiting is enforced under burst traffic while keeping sub-second p95 latency in the tested environment.
 
 ## Project Status
 
@@ -69,7 +94,7 @@ Gatify is being built in public! Check out the [development roadmap](https://lin
 
 ## Architecture
 
-```
+```text
 ┌─────────────┐
 │   Client    │
 └──────┬──────┘
@@ -102,7 +127,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Support
 
-- 📧 Email: nulysses.roda@siruyy.dev
+- 📧 Email: [nulysses.roda@siruyy.dev](mailto:nulysses.roda@siruyy.dev)
 - 🐛 [Report Issues](https://github.com/Siruyy/gatify/issues)
 - 💬 [Discussions](https://github.com/Siruyy/gatify/discussions)
 

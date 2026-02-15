@@ -1,4 +1,4 @@
-.PHONY: help deps test lint build run dev docker-up docker-down clean
+.PHONY: help deps test lint build run dev docker-up docker-down clean test-load test-load-live test-load-quick
 
 # Variables
 BINARY_NAME=gatify
@@ -31,6 +31,18 @@ test-e2e: ## Run end-to-end tests (requires all services running)
 	@echo "   2. go run ./cmd/gatify (in separate terminal)"
 	@echo ""
 	$(GO) test -tags=e2e -v ./tests/e2e/ -count=1
+
+test-load: ## Run k6 load tests (local gateway)
+	@command -v k6 >/dev/null 2>&1 || { echo "Install k6: brew install k6"; exit 1; }
+	k6 run tests/load/k6_gateway.js
+
+test-load-live: ## Run k6 load tests against live gateway
+	@command -v k6 >/dev/null 2>&1 || { echo "Install k6: brew install k6"; exit 1; }
+	k6 run -e BASE_URL=https://api.siruyy.cloud tests/load/k6_gateway.js
+
+test-load-quick: ## Run quick local k6 smoke+load test
+	@command -v k6 >/dev/null 2>&1 || { echo "Install k6: brew install k6"; exit 1; }
+	k6 run -e QUICK=true tests/load/k6_gateway.js
 
 test-all: test test-integration test-e2e ## Run all tests (unit, integration, e2e)
 
