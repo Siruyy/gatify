@@ -32,3 +32,96 @@ func TestRootHandler(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
 }
+
+func TestRequireAdminToken_NotConfigured(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := requireAdminToken("", next)
+	req := httptest.NewRequest(http.MethodGet, "/api/rules", nil)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, w.Code)
+	}
+}
+
+func TestRequireAdminToken_MissingToken(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := requireAdminToken("secret", next)
+	req := httptest.NewRequest(http.MethodGet, "/api/rules", nil)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+}
+
+func TestRequireAdminToken_InvalidToken(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := requireAdminToken("secret", next)
+	req := httptest.NewRequest(http.MethodGet, "/api/rules", nil)
+	req.Header.Set("Authorization", "Bearer wrong")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d", http.StatusForbidden, w.Code)
+	}
+}
+
+func TestRequireAdminToken_ValidAuthorizationHeader(t *testing.T) {
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := requireAdminToken("secret", next)
+	req := httptest.NewRequest(http.MethodGet, "/api/rules", nil)
+	req.Header.Set("Authorization", "Bearer secret")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+	if !nextCalled {
+		t.Fatal("expected next handler to be called")
+	}
+}
+
+func TestRequireAdminToken_ValidXAdminTokenHeader(t *testing.T) {
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := requireAdminToken("secret", next)
+	req := httptest.NewRequest(http.MethodGet, "/api/rules", nil)
+	req.Header.Set("X-Admin-Token", "secret")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+	if !nextCalled {
+		t.Fatal("expected next handler to be called")
+	}
+}

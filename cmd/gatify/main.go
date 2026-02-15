@@ -9,9 +9,11 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/Siruyy/gatify/internal/api"
 	"github.com/Siruyy/gatify/internal/limiter"
 	"github.com/Siruyy/gatify/internal/proxy"
 	"github.com/Siruyy/gatify/internal/storage"
@@ -57,10 +59,17 @@ func main() {
 		log.Fatalf("failed to initialize gateway proxy: %v", err)
 	}
 
+	rulesRepo := api.NewInMemoryRepository()
+	rulesHandler := api.NewRulesHandler(rulesRepo)
+	adminToken := strings.TrimSpace(getEnv("ADMIN_API_TOKEN", ""))
+	protectedRulesHandler := requireAdminToken(adminToken, rulesHandler)
+
 	// Temporary HTTP server for testing
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/", rootHandler)
+	mux.Handle("/api/rules", protectedRulesHandler)
+	mux.Handle("/api/rules/", protectedRulesHandler)
 	mux.Handle("/proxy/", http.StripPrefix("/proxy", gatewayProxy))
 	mux.HandleFunc("/proxy", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/proxy/", http.StatusMovedPermanently)
@@ -145,4 +154,43 @@ func getEnvInt64(key string, fallback int64) int64 {
 	}
 
 	return parsed
+}
+
+func requireAdminToken(expectedToken string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.TrimSpace(expectedToken) == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			if _, err := w.Write([]byte(`{"error":"admin API token not configured"}`)); err != nil {
+				log.Printf("Failed to write response: %v", err)
+			}
+			return
+		}
+
+		token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+		if token == "" {
+			token = strings.TrimSpace(r.Header.Get("X-Admin-Token"))
+		}
+
+		if token == "" {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="gatify-admin"`)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			if _, err := w.Write([]byte(`{"error":"missing admin token"}`)); err != nil {
+				log.Printf("Failed to write response: %v", err)
+			}
+			return
+		}
+
+		if token != expectedToken {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			if _, err := w.Write([]byte(`{"error":"invalid admin token"}`)); err != nil {
+				log.Printf("Failed to write response: %v", err)
+			}
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
