@@ -8,7 +8,7 @@ services:
     environment:
       REDIS_ADDR: ${REDIS_ADDR:-redis:6379}
       BACKEND_URL: ${BACKEND_URL:-http://test-backend:8080}
-      TRUST_PROXY: ${TRUST_PROXY:-true}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
       RATE_LIMIT_REQUESTS: ${RATE_LIMIT_REQUESTS:-100}
       RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
       ADMIN_API_TOKEN: ${ADMIN_API_TOKEN}
@@ -20,7 +20,7 @@ services:
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-sSf", "http://localhost:3000/health"]
       interval: 10s
       timeout: 3s
       retries: 5
@@ -43,7 +43,7 @@ services:
       - gatify-net
 
   timescaledb:
-    image: timescale/timescaledb:latest-pg15
+    image: timescale/timescaledb:2.25.0-pg15@sha256:25951b6cf01a308f699e4ae6500171f8f85a63c0597db38cd56fa63fae0b7342
     container_name: gatify-timescaledb
     restart: unless-stopped
     environment:
