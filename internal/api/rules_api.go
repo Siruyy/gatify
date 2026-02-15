@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Siruyy/gatify/internal/rules"
@@ -78,7 +78,8 @@ func (r *InMemoryRepository) Create(_ context.Context, rule Rule) (Rule, error) 
 	defer r.mu.Unlock()
 
 	now := time.Now().UTC()
-	id := "rule_" + strconv.FormatUint(atomic.AddUint64(&r.nextID, 1), 10)
+	r.nextID++
+	id := "rule_" + strconv.FormatUint(r.nextID, 10)
 
 	rule.ID = id
 	rule.CreatedAt = now
@@ -339,6 +340,7 @@ func validateAndBuildRule(req RuleRequest) (Rule, error) {
 	}
 
 	normalizedMethods := make([]string, 0, len(req.Methods))
+	seenMethods := make(map[string]bool, len(req.Methods))
 	for _, method := range req.Methods {
 		m := strings.ToUpper(strings.TrimSpace(method))
 		if m == "" {
@@ -347,6 +349,10 @@ func validateAndBuildRule(req RuleRequest) (Rule, error) {
 		if !isValidHTTPMethod(m) {
 			return Rule{}, fmt.Errorf("invalid HTTP method %q", m)
 		}
+		if seenMethods[m] {
+			continue
+		}
+		seenMethods[m] = true
 		normalizedMethods = append(normalizedMethods, m)
 	}
 
@@ -409,10 +415,17 @@ func cloneRule(rule Rule) Rule {
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		log.Printf("api: failed to encode JSON response: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 
-	if err := json.NewEncoder(w).Encode(body); err != nil {
-		http.Error(w, `{"error":"internal server error"}`, http.StatusInternalServerError)
+	if _, err := w.Write(append(payload, '\n')); err != nil {
+		log.Printf("api: failed to write JSON response: %v", err)
 	}
 }
