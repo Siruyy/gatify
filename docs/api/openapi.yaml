@@ -1,0 +1,303 @@
+openapi: 3.0.3
+info:
+  title: Gatify API
+  version: 0.1.0
+  description: |
+    API surface for Gatify gateway runtime.
+servers:
+  - url: http://localhost:3000
+paths:
+  /health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service health
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/rules:
+    get:
+      summary: List rules
+      operationId: listRules
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Rule list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Rule'
+        '401':
+          description: Missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Invalid token or token not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      summary: Create rule
+      operationId: createRule
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuleRequest'
+      responses:
+        '201':
+          description: Rule created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Rule'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Invalid token or token not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/rules/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Get rule by ID
+      operationId: getRule
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Rule found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Rule'
+        '404':
+          description: Rule not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      summary: Update rule
+      operationId: updateRule
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RuleRequest'
+      responses:
+        '200':
+          description: Rule updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Rule'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Rule not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      summary: Delete rule
+      operationId: deleteRule
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Rule deleted
+        '404':
+          description: Rule not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /proxy/{path}:
+    parameters:
+      - name: path
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      summary: Proxy GET request
+      operationId: proxyGet
+      responses:
+        '200':
+          description: Proxied response
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitExceeded'
+    post:
+      summary: Proxy POST request
+      operationId: proxyPost
+      responses:
+        '200':
+          description: Proxied response
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitExceeded'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Token
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: gatify
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+
+    RuleRequest:
+      type: object
+      required:
+        - name
+        - pattern
+        - limit
+        - window_seconds
+      properties:
+        name:
+          type: string
+          example: users-limit
+        pattern:
+          type: string
+          example: /api/users/:id
+        methods:
+          type: array
+          items:
+            type: string
+          example: [GET, POST]
+        priority:
+          type: integer
+          example: 10
+        limit:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 100
+        window_seconds:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 60
+        identify_by:
+          type: string
+          enum: [ip, header]
+          default: ip
+        header_name:
+          type: string
+          example: X-API-Key
+        enabled:
+          type: boolean
+          default: true
+
+    Rule:
+      allOf:
+        - $ref: '#/components/schemas/RuleRequest'
+        - type: object
+          required:
+            - id
+            - created_at
+            - updated_at
+          properties:
+            id:
+              type: string
+              example: rule_1
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+
+    RateLimitExceeded:
+      type: object
+      properties:
+        error:
+          type: string
+          example: rate limit exceeded
+        limit:
+          type: integer
+          format: int64
+        remaining:
+          type: integer
+          format: int64
+        reset_at:
+          type: string
+          format: date-time

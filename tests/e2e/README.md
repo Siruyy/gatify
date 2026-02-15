@@ -5,12 +5,13 @@ This directory contains comprehensive end-to-end integration tests that verify t
 ## Overview
 
 E2E tests verify:
-- ✅ Full request flow (client → gateway → redis → backend)
-- ✅ Rate limiting enforcement (allow/block)
-- ✅ Concurrent client handling
-- ✅ Independent rate limits per client IP
-- ✅ Proper HTTP proxying
-- ✅ Response headers (X-RateLimit-*)
+
+- Full request flow (client → gateway → redis → backend)
+- Rate limiting enforcement (allow/block)
+- Concurrent client handling
+- Independent rate limits per client IP
+- Proper HTTP proxying
+- Response headers (X-RateLimit-*)
 
 ## Prerequisites
 
@@ -49,55 +50,69 @@ go test -tags=e2e -v ./tests/e2e/ -run TestRateLimitEnforce
 ## Test Scenarios
 
 ### TestHealth
+
 Verifies the health endpoint responds correctly.
 
 ### TestRateLimitAllow
+
 Tests that requests under the rate limit are allowed and proper headers are returned.
 
 ### TestRateLimitEnforce
+
 Sends many requests to verify the rate limiter blocks excess requests after the limit is reached.
 
 **Expected behavior:**
+
 - First ~100 requests: Allowed (200 OK)
 - Subsequent requests: Blocked (429 Too Many Requests)
 
 ### TestConcurrentClients
+
 Launches multiple concurrent clients making simultaneous requests to verify:
+
 - No race conditions
 - Consistent rate limiting
 - Acceptable latency under load
 
 ### TestDifferentClientIPs
+
 Verifies that different client IPs have independent rate limits.
 
 ### TestResponseHeaders
+
 Checks that all required rate limit headers are present:
+
 - `X-RateLimit-Limit`
 - `X-RateLimit-Remaining`
 - `X-RateLimit-Reset`
 
 ### TestBackendProxying
+
 Verifies that requests are properly proxied to the backend service.
 
 ## Configuration
 
 Tests use the following URLs:
+
 - **Gateway**: `http://localhost:3000`
 - **Proxy Path**: `/proxy/`
 - **Backend**: Configured via `BACKEND_URL` env var (default: `http://localhost:8080`)
 
 Rate limit defaults:
+
 - **Limit**: 100 requests (via `RATE_LIMIT_REQUESTS`)
 - **Window**: 60 seconds (via `RATE_LIMIT_WINDOW_SECONDS`)
 
 ## Debugging
 
 ### View detailed test output
+
 ```bash
 go test -tags=e2e -v ./tests/e2e/ -count=1
 ```
 
 ### Check service status
+
 ```bash
 # Gateway health
 curl http://localhost:3000/health
@@ -110,6 +125,7 @@ curl http://localhost:8080/status/200
 ```
 
 ### View logs
+
 ```bash
 # Docker services
 docker-compose logs -f
@@ -147,14 +163,17 @@ E2E tests can be integrated into CI/CD pipelines:
 ## Troubleshooting
 
 ### "Gatify gateway not available"
+
 - Ensure gateway is running: `go run ./cmd/gatify`
 - Check port 3000 is not in use: `lsof -i :3000`
 
 ### "Connection refused"
+
 - Verify Docker services: `docker-compose ps`
 - Check service health: `docker-compose ps` (look for "healthy" status)
 
 ### Tests are flaky
+
 - Reset Redis state: `docker-compose restart redis`
 - Increase delays between tests
 - Run with `-count=1` to disable test caching
