@@ -36,37 +36,28 @@ services:
 
   # Test backend service (for development)
   test-backend:
-    image: kennethreitz/httpbin
+    image: mccutchen/go-httpbin
     container_name: gatify-test-backend
-    ports:
-      - "8080:80"
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/status/200"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
+    restart: unless-stopped
 
-  # Gatify Gateway (will be built and added later)
-  # gatify:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   container_name: gatify-gateway
-  #   ports:
-  #     - "3000:3000"
-  #     - "3001:3001"  # Management API
-  #   environment:
-  #     - REDIS_URL=redis://redis:6379
-  #     - DATABASE_URL=postgres://gatify:gatify_dev_password@timescaledb:5432/gatify
-  #     - BACKEND_URL=http://test-backend:80
-  #     - LOG_LEVEL=debug
-  #   depends_on:
-  #     redis:
-  #       condition: service_healthy
-  #     timescaledb:
-  #       condition: service_healthy
-  #     test-backend:
-  #       condition: service_healthy
+  # Gatify Gateway
+  gatify:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gatify-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_ADDR=redis:6379
+      - BACKEND_URL=http://test-backend:8080
+      - TRUST_PROXY=true
+    depends_on:
+      redis:
+        condition: service_healthy
+      test-backend:
+        condition: service_started
+    restart: unless-stopped
 
 volumes:
   redis-data:

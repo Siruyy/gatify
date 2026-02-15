@@ -1,0 +1,9 @@
+.git
+bin/
+*.md
+LICENSE
+Makefile
+docker-compose.yml
+.dockerignore
+Gatify.code-workspace
+tests/
