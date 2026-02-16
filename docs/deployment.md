@@ -31,7 +31,17 @@ Verify:
 - `docker compose -f docker-compose.prod.yml ps`
 - `curl http://localhost:3000/health`
 
-## 3) Configure TLS/SSL
+## 3) Apply database migrations
+
+Before serving production traffic, run schema migrations against TimescaleDB:
+
+- `make migrate-up DATABASE_URL="postgres://gatify:${POSTGRES_PASSWORD}@localhost:5432/gatify?sslmode=disable"`
+
+Check migration status:
+
+- `make migrate-version DATABASE_URL="postgres://gatify:${POSTGRES_PASSWORD}@localhost:5432/gatify?sslmode=disable"`
+
+## 4) Configure TLS/SSL
 
 Terminate TLS in front of Gatify with a reverse proxy or load balancer (for example Nginx, Caddy, Traefik, Cloudflare Tunnel, or managed LB).
 
@@ -41,14 +51,14 @@ Recommended:
 - Redirect HTTP to HTTPS
 - Keep Gatify on private network where possible
 
-## 4) Security baseline for deployment
+## 5) Security baseline for deployment
 
 - Keep `ADMIN_API_TOKEN` in a secret manager for production.
 - Do not expose Redis or TimescaleDB directly to the internet.
 - Set `TRUST_PROXY=true` only when traffic passes through a trusted proxy that sets `X-Forwarded-For`.
 - Rotate credentials regularly.
 
-## 5) Backup and recovery
+## 6) Backup and recovery
 
 ### TimescaleDB backup
 
@@ -66,20 +76,20 @@ Redis append-only data is persisted in `redis-data` volume.
 
 For host-level backup, snapshot Docker volumes regularly.
 
-## 6) Monitoring and logs
+## 7) Monitoring and logs
 
 - Tail gateway logs: `docker compose -f docker-compose.prod.yml logs -f gatify`
 - Tail full stack logs: `docker compose -f docker-compose.prod.yml logs -f`
 - Check container health: `docker compose -f docker-compose.prod.yml ps`
 
-## 7) Upgrade strategy
+## 8) Upgrade strategy
 
 1. Pull latest source.
 2. Rebuild and restart stack:
    - `docker compose -f docker-compose.prod.yml up -d --build`
 3. Verify health endpoint and key proxy paths.
 
-## 8) Rollback strategy
+## 9) Rollback strategy
 
 If a deployment fails:
 

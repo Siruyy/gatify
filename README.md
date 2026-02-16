@@ -61,6 +61,8 @@ The gateway serves:
 - Full checks: `make check`
 - E2E tests: `make test-e2e`
 - Load tests: `make test-load-quick`
+- Migrations up: `make migrate-up DATABASE_URL="postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable"`
+- Migration version: `make migrate-version DATABASE_URL="postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable"`
 
 ## Project roadmap
 

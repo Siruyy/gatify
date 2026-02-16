@@ -6,7 +6,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,11 +20,36 @@ import (
 // It defaults to the docker-compose timescaledb instance but can be overridden via DATABASE_URL.
 func postgresURL(t *testing.T) string {
 	t.Helper()
-	url := os.Getenv("DATABASE_URL")
-	if url == "" {
-		url = "postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable"
+	rawURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if rawURL != "" {
+		return rawURL
 	}
-	return url
+
+	host := envOrDefault("POSTGRES_HOST", "localhost")
+	port := envOrDefault("POSTGRES_PORT", "5432")
+	dbName := envOrDefault("POSTGRES_DB", "gatify")
+	user := envOrDefault("POSTGRES_USER", "gatify")
+	password := envOrDefault("POSTGRES_PASSWORD", "gatify_dev_password")
+	sslMode := envOrDefault("POSTGRES_SSLMODE", "disable")
+
+	builtURL := &url.URL{
+		Scheme:   "postgres",
+		Host:     net.JoinHostPort(host, port),
+		Path:     "/" + dbName,
+		RawQuery: "sslmode=" + url.QueryEscape(sslMode),
+		User:     url.UserPassword(user, password),
+	}
+
+	return builtURL.String()
+}
+
+func envOrDefault(key, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+
+	return value
 }
 
 // setupTestDB creates a test database connection and sets up the test schema.
@@ -44,16 +72,16 @@ func setupTestDB(t *testing.T) *sql.DB {
 	// Create test table
 	_, err = db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS rate_limit_events (
-			id SERIAL PRIMARY KEY,
+			id BIGSERIAL PRIMARY KEY,
 			timestamp TIMESTAMPTZ NOT NULL,
 			client_id TEXT NOT NULL,
 			method TEXT NOT NULL,
 			path TEXT NOT NULL,
 			allowed BOOLEAN NOT NULL,
-			rule_id TEXT,
-			limit_value BIGINT,
-			remaining BIGINT,
-			response_ms BIGINT
+			rule_id TEXT NOT NULL,
+			limit_value BIGINT NOT NULL,
+			remaining BIGINT NOT NULL,
+			response_ms BIGINT NOT NULL
 		)
 	`)
 	if err != nil {

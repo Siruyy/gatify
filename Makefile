@@ -1,4 +1,4 @@
-.PHONY: help deps test lint build run dev docker-up docker-down clean test-load test-load-live test-load-quick
+.PHONY: help deps test lint build run dev docker-up docker-down clean test-load test-load-live test-load-quick migrate-up migrate-down migrate-steps migrate-version
 
 # Variables
 BINARY_NAME=gatify
@@ -70,6 +70,23 @@ docker-down: ## Stop all Docker services
 
 docker-logs: ## View Docker logs
 	docker-compose logs -f
+
+migrate-up: ## Apply all pending database migrations (requires DATABASE_URL)
+	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL is required" && exit 1)
+	$(GO) run ./cmd/migrate -action up -database-url "$$DATABASE_URL"
+
+migrate-down: ## Roll back all database migrations (requires DATABASE_URL)
+	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL is required" && exit 1)
+	$(GO) run ./cmd/migrate -action down -database-url "$$DATABASE_URL"
+
+migrate-steps: ## Apply migration steps with signed STEPS (requires DATABASE_URL and STEPS)
+	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL is required" && exit 1)
+	@test -n "$$STEPS" || (echo "STEPS is required (example: STEPS=1 or STEPS=-1)" && exit 1)
+	$(GO) run ./cmd/migrate -action steps -steps "$$STEPS" -database-url "$$DATABASE_URL"
+
+migrate-version: ## Show current migration version (requires DATABASE_URL)
+	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL is required" && exit 1)
+	$(GO) run ./cmd/migrate -action version -database-url "$$DATABASE_URL"
 
 clean: ## Clean build artifacts
 	rm -rf bin/
