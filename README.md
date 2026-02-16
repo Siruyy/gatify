@@ -15,6 +15,8 @@ Self-hosted API Gateway with rate limiting, reverse proxying, and management API
 - Sliding-window request limiting backed by Redis
 - Reverse proxy mode for upstream backends
 - Rules CRUD API (`/api/rules`)
+- Analytics/stats API (`/api/stats/*`)
+- React + Vite dashboard scaffold in `web/`
 - Unit/integration/e2e test suites
 - Container-friendly local setup via Docker Compose
 
@@ -63,6 +65,25 @@ The gateway serves:
 - Load tests: `make test-load-quick`
 - Migrations up: `make migrate-up DATABASE_URL="postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable"`
 - Migration version: `make migrate-version DATABASE_URL="postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable"`
+- Frontend install: `make web-install`
+- Frontend dev server: `make web-dev`
+- Frontend build: `make web-build`
+- Frontend lint: `make web-lint`
+
+## Dashboard scaffold (`web/`)
+
+The frontend scaffold includes:
+
+- React 19 + TypeScript + Vite
+- React Router for app routing
+- TanStack Query for data fetching
+- Tailwind CSS for styling
+- Recharts for analytics visualizations
+
+Environment variables (frontend):
+
+- `VITE_API_BASE_URL` (default: `http://localhost:3000`)
+- `VITE_ADMIN_API_TOKEN` (admin auth for `/api/rules` and `/api/stats`)
 
 ## Project roadmap
 

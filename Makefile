@@ -1,4 +1,4 @@
-.PHONY: help deps test lint build run dev docker-up docker-down clean test-load test-load-live test-load-quick migrate-up migrate-down migrate-steps migrate-version
+.PHONY: help deps test lint build run dev docker-up docker-down clean test-load test-load-live test-load-quick migrate-up migrate-down migrate-steps migrate-version web-install web-dev web-build web-lint
 
 # Variables
 BINARY_NAME=gatify
@@ -70,6 +70,18 @@ docker-down: ## Stop all Docker services
 
 docker-logs: ## View Docker logs
 	docker-compose logs -f
+
+web-install: ## Install frontend dependencies
+	cd web && npm install
+
+web-dev: ## Run frontend dev server
+	cd web && npm run dev
+
+web-build: ## Build frontend
+	cd web && npm run build
+
+web-lint: ## Lint frontend
+	cd web && npm run lint
 
 migrate-up: ## Apply all pending database migrations (requires DATABASE_URL)
 	@test -n "$$DATABASE_URL" || (echo "DATABASE_URL is required" && exit 1)
