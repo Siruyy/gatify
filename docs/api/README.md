@@ -85,6 +85,37 @@ Updates a rule (partial merge behavior for omitted optional fields).
 
 Deletes a rule and returns `204`.
 
+## Analytics & Statistics API
+
+Protected endpoints under `/api/stats`.
+
+Auth options:
+
+- `Authorization: Bearer <ADMIN_API_TOKEN>`
+- `X-Admin-Token: <ADMIN_API_TOKEN>`
+
+Optional query parameters:
+
+- `window` (default `24h`, supports values like `15m`, `1h`, `7d`)
+- `limit` (only for top blocked clients, default `10`, max `100`)
+- `bucket` (only for timeline, default `5m`, min `1m`, max `24h`)
+
+### `GET /api/stats/overview`
+
+Returns aggregate request stats (total/allowed/blocked/unique clients/block rate).
+
+### `GET /api/stats/top-blocked`
+
+Returns top blocked clients for the selected window.
+
+### `GET /api/stats/rules/{id}`
+
+Returns rule-specific analytics for the selected window.
+
+### `GET /api/stats/timeline`
+
+Returns time-bucketed allowed/blocked/total counts.
+
 ## OpenAPI
 
 Machine-readable specification:

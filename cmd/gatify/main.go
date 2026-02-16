@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,10 +14,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Siruyy/gatify/internal/analytics"
 	"github.com/Siruyy/gatify/internal/api"
 	"github.com/Siruyy/gatify/internal/limiter"
 	"github.com/Siruyy/gatify/internal/proxy"
 	"github.com/Siruyy/gatify/internal/storage"
+	_ "github.com/lib/pq"
 )
 
 func main() {
@@ -64,12 +67,48 @@ func main() {
 	adminToken := strings.TrimSpace(getEnv("ADMIN_API_TOKEN", ""))
 	protectedRulesHandler := requireAdminToken(adminToken, rulesHandler)
 
+	var statsProvider api.StatsProvider
+	databaseURL := strings.TrimSpace(getEnv("DATABASE_URL", ""))
+	if databaseURL != "" {
+		analyticsDB, openErr := sql.Open("postgres", databaseURL)
+		if openErr != nil {
+			log.Fatalf("failed to initialize analytics database connection: %v", openErr)
+		}
+
+		pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		if pingErr := analyticsDB.PingContext(pingCtx); pingErr != nil {
+			pingCancel()
+			_ = analyticsDB.Close()
+			log.Fatalf("failed to connect analytics database: %v", pingErr)
+		}
+		pingCancel()
+
+		queryService, serviceErr := analytics.NewQueryService(analyticsDB)
+		if serviceErr != nil {
+			_ = analyticsDB.Close()
+			log.Fatalf("failed to initialize analytics query service: %v", serviceErr)
+		}
+
+		statsProvider = queryService
+
+		defer func() {
+			if closeErr := analyticsDB.Close(); closeErr != nil {
+				log.Printf("failed to close analytics database connection: %v", closeErr)
+			}
+		}()
+	}
+
+	statsHandler := api.NewStatsHandler(statsProvider)
+	protectedStatsHandler := requireAdminToken(adminToken, statsHandler)
+
 	// Temporary HTTP server for testing
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/", rootHandler)
 	mux.Handle("/api/rules", protectedRulesHandler)
 	mux.Handle("/api/rules/", protectedRulesHandler)
+	mux.Handle("/api/stats", protectedStatsHandler)
+	mux.Handle("/api/stats/", protectedStatsHandler)
 	mux.Handle("/proxy/", http.StripPrefix("/proxy", gatewayProxy))
 	mux.HandleFunc("/proxy", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/proxy/", http.StatusMovedPermanently)
