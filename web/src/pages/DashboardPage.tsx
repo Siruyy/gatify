@@ -1,17 +1,75 @@
+import { useMemo, useState } from 'react'
 import { SummaryCard } from '../components/SummaryCard'
 import { TrafficChart } from '../components/TrafficChart'
 import { useOverview, useTimeline } from '../hooks/useDashboardData'
+
+type RangeOption = {
+  label: string
+  window: string
+  bucket: string
+  description: string
+}
+
+const RANGE_OPTIONS: RangeOption[] = [
+  {
+    label: '1H',
+    window: '1h',
+    bucket: '1m',
+    description: 'Live gateway metrics for the last hour.',
+  },
+  {
+    label: '24H',
+    window: '24h',
+    bucket: '15m',
+    description: 'Live gateway metrics for the last 24 hours.',
+  },
+  {
+    label: '7D',
+    window: '7d',
+    bucket: '6h',
+    description: 'Live gateway metrics for the last 7 days.',
+  },
+]
+
+const LIVE_REFRESH_MS = 10_000
 
 function toPercent(ratio: number) {
   return `${(ratio * 100).toFixed(1)}%`
 }
 
 export function DashboardPage() {
-  const overview = useOverview('24h')
-  const timeline = useTimeline('24h', '1h')
+  const [selectedWindow, setSelectedWindow] = useState('24h')
+  const [liveEnabled, setLiveEnabled] = useState(true)
+
+  const selectedRange = useMemo(() => {
+    return RANGE_OPTIONS.find((option) => option.window === selectedWindow) ?? RANGE_OPTIONS[1]
+  }, [selectedWindow])
+
+  const refetchInterval = liveEnabled ? LIVE_REFRESH_MS : false
+
+  const overview = useOverview(selectedRange.window, { refetchInterval })
+  const timeline = useTimeline(selectedRange.window, selectedRange.bucket, { refetchInterval })
 
   const isLoading = overview.isLoading || timeline.isLoading
+  const isRefreshing = overview.isFetching || timeline.isFetching
   const hasError = overview.isError || timeline.isError
+
+  const lastUpdated = useMemo(() => {
+    const latest = Math.max(overview.dataUpdatedAt, timeline.dataUpdatedAt)
+    if (!latest) {
+      return null
+    }
+
+    return new Date(latest).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+  }, [overview.dataUpdatedAt, timeline.dataUpdatedAt])
+
+  const handleManualRefresh = () => {
+    void Promise.all([overview.refetch(), timeline.refetch()])
+  }
 
   if (isLoading) {
     return <p className="text-slate-300">Loading dashboard data...</p>
@@ -27,9 +85,57 @@ export function DashboardPage() {
 
   return (
     <section className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-semibold text-white">Traffic Overview</h2>
-        <p className="mt-1 text-sm text-slate-400">Live gateway metrics for the last 24 hours.</p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold text-white">Traffic Overview</h2>
+          <p className="mt-1 text-sm text-slate-400">{selectedRange.description}</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="rounded-xl border border-slate-700 bg-slate-900 p-1">
+            {RANGE_OPTIONS.map((option) => {
+              const isActive = option.window === selectedRange.window
+              return (
+                <button
+                  key={option.window}
+                  type="button"
+                  onClick={() => setSelectedWindow(option.window)}
+                  className={[
+                    'rounded-lg px-3 py-1.5 text-xs font-medium transition',
+                    isActive ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                  ].join(' ')}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setLiveEnabled((prev) => !prev)}
+            className={[
+              'rounded-lg border px-3 py-1.5 text-xs font-medium transition',
+              liveEnabled
+                ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                : 'border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white',
+            ].join(' ')}
+          >
+            {liveEnabled ? 'Live: On' : 'Live: Off'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleManualRefresh}
+            className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white"
+          >
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div className="text-xs text-slate-400">
+        {isRefreshing ? 'Updating metrics…' : `Last updated at ${lastUpdated ?? '—'}`}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
