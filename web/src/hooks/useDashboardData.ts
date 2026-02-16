@@ -13,6 +13,8 @@ export type Overview = {
   block_rate: number
 }
 
+export type IdentifyBy = 'ip' | 'header'
+
 export type Rule = {
   id: string
   name: string
@@ -21,7 +23,7 @@ export type Rule = {
   priority: number
   limit: number
   window_seconds: number
-  identify_by: string
+  identify_by: IdentifyBy
   header_name?: string
   enabled: boolean
   created_at: string
@@ -35,7 +37,7 @@ export type RulePayload = {
   priority: number
   limit: number
   window_seconds: number
-  identify_by: 'ip' | 'header'
+  identify_by: IdentifyBy
   header_name?: string
   enabled?: boolean
 }
@@ -105,11 +107,6 @@ export function useCreateRule() {
         authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
         body: payload,
       })
-
-      if (!response) {
-        return null
-      }
-
       return response.data
     },
     onSuccess: async () => {
@@ -128,11 +125,6 @@ export function useUpdateRule() {
         authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
         body: payload,
       })
-
-      if (!response) {
-        return null
-      }
-
       return response.data
     },
     onSuccess: async () => {

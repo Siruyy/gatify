@@ -4,6 +4,7 @@ import {
   useDeleteRule,
   useRules,
   useUpdateRule,
+  type IdentifyBy,
   type Rule,
   type RulePayload,
 } from '../hooks/useDashboardData'
@@ -15,7 +16,7 @@ type FormState = {
   priority: string
   limit: string
   window_seconds: string
-  identify_by: 'ip' | 'header'
+  identify_by: IdentifyBy
   header_name: string
   enabled: boolean
 }
@@ -53,6 +54,20 @@ function toFormState(rule: Rule): FormState {
   }
 }
 
+function ruleToPayload(rule: Rule): RulePayload {
+  return {
+    name: rule.name,
+    pattern: rule.pattern,
+    methods: rule.methods ?? [],
+    priority: rule.priority,
+    limit: rule.limit,
+    window_seconds: rule.window_seconds,
+    identify_by: rule.identify_by === 'header' ? 'header' : 'ip',
+    header_name: rule.header_name ?? '',
+    enabled: rule.enabled,
+  }
+}
+
 function validateForm(form: FormState): string | null {
   if (!form.name.trim()) {
     return 'Name is required.'
@@ -64,6 +79,11 @@ function validateForm(form: FormState): string | null {
   const limit = Number(form.limit)
   if (!Number.isInteger(limit) || limit <= 0) {
     return 'Limit must be a positive integer.'
+  }
+
+  const priority = Number(form.priority)
+  if (!Number.isInteger(priority) || priority < 0) {
+    return 'Priority must be a non-negative integer.'
   }
 
   const windowSeconds = Number(form.window_seconds)
@@ -92,9 +112,61 @@ function buildPayload(form: FormState): RulePayload {
     limit: Number(form.limit),
     window_seconds: Number(form.window_seconds),
     identify_by: form.identify_by,
-    header_name: form.identify_by === 'header' ? form.header_name.trim() : '',
+    header_name: form.identify_by === 'header' ? form.header_name.trim() : undefined,
     enabled: form.enabled,
   }
+}
+
+type ConfirmModalProps = {
+  open: boolean
+  title: string
+  description: string
+  confirmLabel?: string
+  isLoading?: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}
+
+function ConfirmModal({
+  open,
+  title,
+  description,
+  confirmLabel = 'Confirm',
+  isLoading = false,
+  onCancel,
+  onConfirm,
+}: ConfirmModalProps) {
+  if (!open) {
+    return null
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4">
+      <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl shadow-slate-950/60">
+        <h3 className="text-lg font-semibold text-white">{title}</h3>
+        <p className="mt-2 text-sm text-slate-300">{description}</p>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isLoading}
+            className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isLoading}
+            className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-400 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function RulesPage() {
@@ -110,6 +182,7 @@ export function RulesPage() {
   const [form, setForm] = useState<FormState>(defaultFormState)
   const [formError, setFormError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Rule | null>(null)
 
   const isMutating = createRule.isPending || updateRule.isPending || deleteRule.isPending
 
@@ -187,14 +260,7 @@ export function RulesPage() {
       await updateRule.mutateAsync({
         id: rule.id,
         payload: {
-          name: rule.name,
-          pattern: rule.pattern,
-          methods: rule.methods ?? [],
-          priority: rule.priority,
-          limit: rule.limit,
-          window_seconds: rule.window_seconds,
-          identify_by: rule.identify_by === 'header' ? 'header' : 'ip',
-          header_name: rule.header_name ?? '',
+          ...ruleToPayload(rule),
           enabled: !rule.enabled,
         },
       })
@@ -204,15 +270,19 @@ export function RulesPage() {
     }
   }
 
-  const handleDelete = async (rule: Rule) => {
+  const handleDelete = (rule: Rule) => {
     setActionError(null)
-    const confirmed = window.confirm(`Delete rule "${rule.name}"? This action cannot be undone.`)
-    if (!confirmed) {
+    setDeleteTarget(rule)
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) {
       return
     }
 
     try {
-      await deleteRule.mutateAsync(rule.id)
+      await deleteRule.mutateAsync(deleteTarget.id)
+      setDeleteTarget(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to delete rule.'
       setActionError(message)
@@ -364,6 +434,8 @@ export function RulesPage() {
                   type="text"
                   value={form.name}
                   onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))}
+                  aria-invalid={Boolean(formError)}
+                  aria-describedby={formError ? 'rules-form-error' : undefined}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-cyan-500/40 focus:ring"
                 />
               </label>
@@ -374,6 +446,8 @@ export function RulesPage() {
                   type="text"
                   value={form.pattern}
                   onChange={(event) => setForm((prev) => ({ ...prev, pattern: event.target.value }))}
+                  aria-invalid={Boolean(formError)}
+                  aria-describedby={formError ? 'rules-form-error' : undefined}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-cyan-500/40 focus:ring"
                 />
               </label>
@@ -384,6 +458,8 @@ export function RulesPage() {
                   type="text"
                   value={form.methods}
                   onChange={(event) => setForm((prev) => ({ ...prev, methods: event.target.value }))}
+                  aria-invalid={Boolean(formError)}
+                  aria-describedby={formError ? 'rules-form-error' : undefined}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-cyan-500/40 focus:ring"
                 />
               </label>
@@ -394,6 +470,8 @@ export function RulesPage() {
                   type="number"
                   value={form.priority}
                   onChange={(event) => setForm((prev) => ({ ...prev, priority: event.target.value }))}
+                  aria-invalid={Boolean(formError)}
+                  aria-describedby={formError ? 'rules-form-error' : undefined}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-cyan-500/40 focus:ring"
                 />
               </label>
@@ -405,6 +483,8 @@ export function RulesPage() {
                   min={1}
                   value={form.limit}
                   onChange={(event) => setForm((prev) => ({ ...prev, limit: event.target.value }))}
+                  aria-invalid={Boolean(formError)}
+                  aria-describedby={formError ? 'rules-form-error' : undefined}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-cyan-500/40 focus:ring"
                 />
               </label>
@@ -416,6 +496,8 @@ export function RulesPage() {
                   min={1}
                   value={form.window_seconds}
                   onChange={(event) => setForm((prev) => ({ ...prev, window_seconds: event.target.value }))}
+                  aria-invalid={Boolean(formError)}
+                  aria-describedby={formError ? 'rules-form-error' : undefined}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-cyan-500/40 focus:ring"
                 />
               </label>
@@ -427,9 +509,11 @@ export function RulesPage() {
                   onChange={(event) =>
                     setForm((prev) => ({
                       ...prev,
-                      identify_by: event.target.value as 'ip' | 'header',
+                      identify_by: event.target.value as IdentifyBy,
                     }))
                   }
+                  aria-invalid={Boolean(formError)}
+                  aria-describedby={formError ? 'rules-form-error' : undefined}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-cyan-500/40 focus:ring"
                 >
                   <option value="ip">IP Address</option>
@@ -442,6 +526,8 @@ export function RulesPage() {
                   type="checkbox"
                   checked={form.enabled}
                   onChange={(event) => setForm((prev) => ({ ...prev, enabled: event.target.checked }))}
+                  aria-invalid={Boolean(formError)}
+                  aria-describedby={formError ? 'rules-form-error' : undefined}
                   className="h-4 w-4 rounded border-slate-600 bg-slate-950"
                 />
                 Enabled
@@ -455,12 +541,18 @@ export function RulesPage() {
                   type="text"
                   value={form.header_name}
                   onChange={(event) => setForm((prev) => ({ ...prev, header_name: event.target.value }))}
+                  aria-invalid={Boolean(formError)}
+                  aria-describedby={formError ? 'rules-form-error' : undefined}
                   className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 outline-none ring-cyan-500/40 focus:ring"
                 />
               </label>
             ) : null}
 
-            {formError ? <p className="text-sm text-red-300">{formError}</p> : null}
+            {formError ? (
+              <p id="rules-form-error" className="text-sm text-red-300">
+                {formError}
+              </p>
+            ) : null}
             {actionError ? <p className="text-sm text-red-300">{actionError}</p> : null}
 
             <div className="flex justify-end gap-2">
@@ -482,6 +574,20 @@ export function RulesPage() {
           </form>
         </div>
       ) : null}
+
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Delete rule"
+        description={
+          deleteTarget
+            ? `Delete rule "${deleteTarget.name}"? This action cannot be undone.`
+            : 'Delete this rule? This action cannot be undone.'
+        }
+        confirmLabel="Delete"
+        isLoading={deleteRule.isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
     </section>
   )
 }
