@@ -18,7 +18,7 @@ Optional:
 3. Install dependencies with `make deps`
 4. Start infra services using `make dev`
 5. Apply database migrations:
-   - `make migrate-up DATABASE_URL="postgres://gatify:your_password@localhost:5432/gatify?sslmode=disable"`
+   - `make migrate-up DATABASE_URL="postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable"`
 6. Run gateway with `go run ./cmd/gatify`
 
 ## Verify installation
@@ -49,9 +49,9 @@ If `test-backend` is running, this should return proxied JSON from httpbin.
 ## Migration helpers
 
 - Show migration version:
-  - `make migrate-version DATABASE_URL="postgres://gatify:your_password@localhost:5432/gatify?sslmode=disable"`
+  - `make migrate-version DATABASE_URL="postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable"`
 - Roll back one step:
-  - `make migrate-steps DATABASE_URL="postgres://gatify:your_password@localhost:5432/gatify?sslmode=disable" STEPS=-1`
+  - `make migrate-steps DATABASE_URL="postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable" STEPS=-1`
 
 ## Troubleshooting
 
