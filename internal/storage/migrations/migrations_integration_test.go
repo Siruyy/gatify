@@ -5,7 +5,10 @@ package migrations
 import (
 	"database/sql"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -13,11 +16,27 @@ import (
 // It defaults to localhost but can be overridden via DATABASE_URL.
 func postgresURL(t *testing.T) string {
 	t.Helper()
-	url := os.Getenv("DATABASE_URL")
-	if url == "" {
-		url = "postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable"
+	rawURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if rawURL != "" {
+		return rawURL
 	}
-	return url
+
+	host := envOrDefault("POSTGRES_HOST", "localhost")
+	port := envOrDefault("POSTGRES_PORT", "5432")
+	dbName := envOrDefault("POSTGRES_DB", "gatify")
+	user := envOrDefault("POSTGRES_USER", "gatify")
+	password := envOrDefault("POSTGRES_PASSWORD", "gatify_dev_password")
+	sslMode := envOrDefault("POSTGRES_SSLMODE", "disable")
+
+	builtURL := &url.URL{
+		Scheme:   "postgres",
+		Host:     net.JoinHostPort(host, port),
+		Path:     "/" + dbName,
+		RawQuery: "sslmode=" + url.QueryEscape(sslMode),
+		User:     url.UserPassword(user, password),
+	}
+
+	return builtURL.String()
 }
 
 // createTestDatabase creates a test database for migration tests.
@@ -54,7 +73,31 @@ func createTestDatabase(t *testing.T) string {
 	})
 
 	// Return URL for test database
-	return fmt.Sprintf("postgres://gatify:gatify_dev_password@localhost:5432/%s?sslmode=disable", testDBName)
+	testURL, err := withDatabaseName(baseURL, testDBName)
+	if err != nil {
+		t.Fatalf("Failed to construct test database URL: %v", err)
+	}
+
+	return testURL
+}
+
+func withDatabaseName(rawURL, dbName string) (string, error) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid database URL %q: %w", rawURL, err)
+	}
+
+	parsed.Path = "/" + dbName
+	return parsed.String(), nil
+}
+
+func envOrDefault(key, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+
+	return value
 }
 
 func TestNewRunner(t *testing.T) {

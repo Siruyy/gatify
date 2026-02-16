@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS rules (
 );
 
 CREATE TABLE IF NOT EXISTS rate_limit_events (
-  id BIGSERIAL PRIMARY KEY,
+  id BIGSERIAL NOT NULL,
   timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   client_id TEXT NOT NULL,
   method TEXT NOT NULL,
@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS rate_limit_events (
   rule_id TEXT NOT NULL,
   limit_value BIGINT NOT NULL CHECK (limit_value > 0),
   remaining BIGINT NOT NULL,
-  response_ms BIGINT NOT NULL CHECK (response_ms >= 0)
+  response_ms BIGINT NOT NULL CHECK (response_ms >= 0),
+  PRIMARY KEY (timestamp, id)
 );
 
 SELECT create_hypertable(

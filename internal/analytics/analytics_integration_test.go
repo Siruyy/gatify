@@ -6,7 +6,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,11 +20,36 @@ import (
 // It defaults to the docker-compose timescaledb instance but can be overridden via DATABASE_URL.
 func postgresURL(t *testing.T) string {
 	t.Helper()
-	url := os.Getenv("DATABASE_URL")
-	if url == "" {
-		url = "postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable"
+	rawURL := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if rawURL != "" {
+		return rawURL
 	}
-	return url
+
+	host := envOrDefault("POSTGRES_HOST", "localhost")
+	port := envOrDefault("POSTGRES_PORT", "5432")
+	dbName := envOrDefault("POSTGRES_DB", "gatify")
+	user := envOrDefault("POSTGRES_USER", "gatify")
+	password := envOrDefault("POSTGRES_PASSWORD", "gatify_dev_password")
+	sslMode := envOrDefault("POSTGRES_SSLMODE", "disable")
+
+	builtURL := &url.URL{
+		Scheme:   "postgres",
+		Host:     net.JoinHostPort(host, port),
+		Path:     "/" + dbName,
+		RawQuery: "sslmode=" + url.QueryEscape(sslMode),
+		User:     url.UserPassword(user, password),
+	}
+
+	return builtURL.String()
+}
+
+func envOrDefault(key, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return fallback
+	}
+
+	return value
 }
 
 // setupTestDB creates a test database connection and sets up the test schema.
