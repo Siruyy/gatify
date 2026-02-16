@@ -65,7 +65,11 @@ func TestServeHTTP_AllowsAndProxies(t *testing.T) {
 		},
 	}
 
-	gp, err := New(targetURL, lim)
+	var events []Event
+
+	gp, err := New(targetURL, lim, WithEventSink(func(event Event) {
+		events = append(events, event)
+	}))
 	if err != nil {
 		t.Fatalf("failed to create proxy: %v", err)
 	}
@@ -88,6 +92,12 @@ func TestServeHTTP_AllowsAndProxies(t *testing.T) {
 	if lim.key != "1.2.3.4" {
 		t.Fatalf("expected limiter key 1.2.3.4, got %q", lim.key)
 	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 published event, got %d", len(events))
+	}
+	if !events[0].Allowed {
+		t.Fatalf("expected allowed event, got allowed=%v", events[0].Allowed)
+	}
 }
 
 func TestServeHTTP_RateLimited(t *testing.T) {
@@ -108,7 +118,11 @@ func TestServeHTTP_RateLimited(t *testing.T) {
 		},
 	}
 
-	gp, err := New(targetURL, lim)
+	var events []Event
+
+	gp, err := New(targetURL, lim, WithEventSink(func(event Event) {
+		events = append(events, event)
+	}))
 	if err != nil {
 		t.Fatalf("failed to create proxy: %v", err)
 	}
@@ -133,6 +147,12 @@ func TestServeHTTP_RateLimited(t *testing.T) {
 	}
 	if backendCalled {
 		t.Fatal("backend should not be called when rate limited")
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 published event, got %d", len(events))
+	}
+	if events[0].Allowed {
+		t.Fatalf("expected blocked event, got allowed=%v", events[0].Allowed)
 	}
 }
 

@@ -57,7 +57,24 @@ func main() {
 
 	// Enable trust proxy to use X-Forwarded-For headers
 	trustProxy := getEnv("TRUST_PROXY", "false") == "true"
-	gatewayProxy, err := proxy.New(targetURL, lim, proxy.WithTrustProxy(trustProxy))
+	statsStreamBroker := api.NewStatsStreamBroker(256)
+	gatewayProxy, err := proxy.New(
+		targetURL,
+		lim,
+		proxy.WithTrustProxy(trustProxy),
+		proxy.WithEventSink(func(event proxy.Event) {
+			statsStreamBroker.Publish(api.StatsStreamEvent{
+				Timestamp: event.Timestamp,
+				ClientID:  event.ClientID,
+				Method:    event.Method,
+				Path:      event.Path,
+				Allowed:   event.Allowed,
+				Limit:     event.Limit,
+				Remaining: event.Remaining,
+				Status:    event.Status,
+			})
+		}),
+	)
 	if err != nil {
 		log.Fatalf("failed to initialize gateway proxy: %v", err)
 	}
@@ -100,6 +117,8 @@ func main() {
 
 	statsHandler := api.NewStatsHandler(statsProvider)
 	protectedStatsHandler := requireAdminToken(adminToken, statsHandler)
+	statsStreamHandler := api.NewStatsStreamHandler(statsStreamBroker)
+	protectedStatsStreamHandler := requireAdminTokenWithQuery(adminToken, statsStreamHandler)
 
 	// Temporary HTTP server for testing
 	mux := http.NewServeMux()
@@ -109,6 +128,7 @@ func main() {
 	mux.Handle("/api/rules/", protectedRulesHandler)
 	mux.Handle("/api/stats", protectedStatsHandler)
 	mux.Handle("/api/stats/", protectedStatsHandler)
+	mux.Handle("/api/stats/stream", protectedStatsStreamHandler)
 	mux.Handle("/proxy/", http.StripPrefix("/proxy", gatewayProxy))
 	mux.HandleFunc("/proxy", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/proxy/", http.StatusMovedPermanently)
@@ -196,6 +216,14 @@ func getEnvInt64(key string, fallback int64) int64 {
 }
 
 func requireAdminToken(expectedToken string, next http.Handler) http.Handler {
+	return requireAdminTokenInternal(expectedToken, next, false)
+}
+
+func requireAdminTokenWithQuery(expectedToken string, next http.Handler) http.Handler {
+	return requireAdminTokenInternal(expectedToken, next, true)
+}
+
+func requireAdminTokenInternal(expectedToken string, next http.Handler, allowQueryToken bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(expectedToken) == "" {
 			w.Header().Set("Content-Type", "application/json")
@@ -206,10 +234,7 @@ func requireAdminToken(expectedToken string, next http.Handler) http.Handler {
 			return
 		}
 
-		token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
-		if token == "" {
-			token = strings.TrimSpace(r.Header.Get("X-Admin-Token"))
-		}
+		token := extractAdminToken(r, allowQueryToken)
 
 		if token == "" {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="gatify-admin"`)
@@ -232,4 +257,16 @@ func requireAdminToken(expectedToken string, next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func extractAdminToken(r *http.Request, allowQueryToken bool) string {
+	token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+	if token == "" {
+		token = strings.TrimSpace(r.Header.Get("X-Admin-Token"))
+	}
+	if token == "" && allowQueryToken {
+		token = strings.TrimSpace(r.URL.Query().Get("token"))
+	}
+
+	return token
 }

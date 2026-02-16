@@ -4,6 +4,7 @@ go 1.22.0
 
 require (
 	github.com/golang-migrate/migrate/v4 v4.18.2
+	github.com/gorilla/websocket v1.5.3
 	github.com/lib/pq v1.11.2
 	github.com/redis/go-redis/v9 v9.17.3
 )

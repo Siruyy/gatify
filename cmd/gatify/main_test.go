@@ -125,3 +125,45 @@ func TestRequireAdminToken_ValidXAdminTokenHeader(t *testing.T) {
 		t.Fatal("expected next handler to be called")
 	}
 }
+
+func TestRequireAdminTokenWithQuery_ValidQueryToken(t *testing.T) {
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := requireAdminTokenWithQuery("secret", next)
+	req := httptest.NewRequest(http.MethodGet, "/api/stats/stream?token=secret", nil)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, w.Code)
+	}
+	if !nextCalled {
+		t.Fatal("expected next handler to be called")
+	}
+}
+
+func TestRequireAdminToken_DoesNotAllowQueryToken(t *testing.T) {
+	nextCalled := false
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	})
+
+	h := requireAdminToken("secret", next)
+	req := httptest.NewRequest(http.MethodGet, "/api/rules?token=secret", nil)
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, w.Code)
+	}
+	if nextCalled {
+		t.Fatal("expected next handler not to be called")
+	}
+}
