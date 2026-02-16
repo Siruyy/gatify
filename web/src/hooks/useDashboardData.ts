@@ -33,7 +33,7 @@ export function useOverview(window = '24h') {
     queryKey: ['stats-overview', window],
     queryFn: async () => {
       const payload = await apiRequest<ApiEnvelope<Overview>>(`/api/stats/overview?window=${encodeURIComponent(window)}`, {
-        authToken: getRuntimeAdminToken(),
+        authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
       })
       return payload.data
     },
@@ -47,7 +47,7 @@ export function useTimeline(window = '24h', bucket = '1h') {
       const payload = await apiRequest<ApiEnvelope<TrafficPoint[]>>(
         `/api/stats/timeline?window=${encodeURIComponent(window)}&bucket=${encodeURIComponent(bucket)}`,
         {
-          authToken: getRuntimeAdminToken(),
+          authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
         },
       )
       return payload.data
@@ -60,7 +60,7 @@ export function useRules() {
     queryKey: ['rules-list'],
     queryFn: async () => {
       const payload = await apiRequest<ApiEnvelope<Rule[]>>('/api/rules', {
-        authToken: getRuntimeAdminToken(),
+        authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
       })
       return payload.data
     },

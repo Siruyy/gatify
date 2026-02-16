@@ -31,9 +31,10 @@ Configure in the root `.env` or export in your shell:
 ## Runtime auth behavior
 
 - API requests do **not** read a build-time token from environment variables.
-- At request time, the frontend reads an admin token from browser storage keys:
-  - `gatify.adminToken`
-  - `adminToken`
+- Preferred runtime sources:
+  - An injected in-memory getter (`window.__GATIFY_ADMIN_TOKEN__`)
+  - Secure httpOnly cookie session on the backend
+- Legacy browser storage token lookup is disabled by default and only used when explicitly opted in (`useLegacyStorage: true`).
 - Requests are sent with `credentials: include` to support secure cookie-based auth if configured.
 
 ## Build and lint

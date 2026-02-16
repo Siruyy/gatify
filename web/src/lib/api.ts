@@ -27,7 +27,12 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     throw new Error(errorText || `Request failed with status ${response.status}`)
   }
 
-  return (await response.json()) as T
+  const text = await response.text()
+  if (response.status === 204 || response.status === 205 || text.trim() === '') {
+    return null as unknown as T
+  }
+
+  return JSON.parse(text) as T
 }
 
 export type ApiEnvelope<T> = {

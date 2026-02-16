@@ -86,7 +86,8 @@ Environment variables (frontend):
 
 Runtime auth notes (frontend):
 
-- API auth token is read at runtime from browser storage keys (`gatify.adminToken` or `adminToken`) or via secure cookies.
+- API auth token is read at runtime from an injected in-memory source (`window.__GATIFY_ADMIN_TOKEN__`) or secure cookies.
+- Legacy browser storage lookup is disabled by default and requires explicit opt-in.
 - No build-time admin token is embedded in the frontend bundle.
 
 ## Project roadmap
