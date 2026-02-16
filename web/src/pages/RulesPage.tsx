@@ -10,7 +10,7 @@ export function RulesPage() {
   if (rulesQuery.isError || !rulesQuery.data) {
     return (
       <div className="rounded-xl border border-red-500/30 bg-red-950/30 p-4 text-red-200">
-        Failed to load rules. Ensure `VITE_API_BASE_URL` and `VITE_ADMIN_API_TOKEN` are configured.
+        Failed to load rules. Ensure `VITE_API_BASE_URL` and runtime admin auth are configured.
       </div>
     )
   }
@@ -26,12 +26,12 @@ export function RulesPage() {
         <table className="min-w-full divide-y divide-slate-800 text-sm">
           <thead className="bg-slate-900/80 text-left text-slate-300">
             <tr>
-              <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Pattern</th>
-              <th className="px-4 py-3 font-medium">Methods</th>
-              <th className="px-4 py-3 font-medium">Limit</th>
-              <th className="px-4 py-3 font-medium">Window</th>
-              <th className="px-4 py-3 font-medium">Status</th>
+              <th scope="col" className="px-4 py-3 font-medium">Name</th>
+              <th scope="col" className="px-4 py-3 font-medium">Pattern</th>
+              <th scope="col" className="px-4 py-3 font-medium">Methods</th>
+              <th scope="col" className="px-4 py-3 font-medium">Limit</th>
+              <th scope="col" className="px-4 py-3 font-medium">Window</th>
+              <th scope="col" className="px-4 py-3 font-medium">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-800 text-slate-100">

@@ -1,19 +1,10 @@
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
 # Gatify Dashboard (`web/`)
 
 Frontend scaffold for GAT-21.
 
 ## Stack
 
-- React 19 + TypeScript + Vite
+- React 18 + TypeScript + Vite
 - React Router
 - TanStack Query
 - Tailwind CSS
@@ -36,7 +27,14 @@ Or directly in this folder:
 Configure in the root `.env` or export in your shell:
 
 - `VITE_API_BASE_URL` (default: `http://localhost:3000`)
-- `VITE_ADMIN_API_TOKEN` (required to call protected `/api/rules` and `/api/stats` endpoints)
+
+## Runtime auth behavior
+
+- API requests do **not** read a build-time token from environment variables.
+- At request time, the frontend reads an admin token from browser storage keys:
+  - `gatify.adminToken`
+  - `adminToken`
+- Requests are sent with `credentials: include` to support secure cookie-based auth if configured.
 
 ## Build and lint
 
@@ -52,12 +50,3 @@ Configure in the root `.env` or export in your shell:
 
 - This is a scaffold baseline for the dashboard roadmap and intentionally keeps feature logic minimal.
 - Backend API is expected to run on `http://localhost:3000` during local development.
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```

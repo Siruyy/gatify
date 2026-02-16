@@ -1,10 +1,9 @@
 export const apiBaseURL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3000'
 
-const adminToken = import.meta.env.VITE_ADMIN_API_TOKEN ?? ''
-
 type RequestOptions = {
   method?: string
   body?: unknown
+  authToken?: string
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -12,13 +11,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     'Content-Type': 'application/json',
   })
 
-  if (adminToken) {
-    headers.set('Authorization', `Bearer ${adminToken}`)
+  if (options.authToken) {
+    headers.set('Authorization', `Bearer ${options.authToken}`)
   }
 
   const response = await fetch(`${apiBaseURL}${path}`, {
     method: options.method ?? 'GET',
     headers,
+    credentials: 'include',
     body: options.body ? JSON.stringify(options.body) : undefined,
   })
 

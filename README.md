@@ -74,7 +74,7 @@ The gateway serves:
 
 The frontend scaffold includes:
 
-- React 19 + TypeScript + Vite
+- React 18 + TypeScript + Vite
 - React Router for app routing
 - TanStack Query for data fetching
 - Tailwind CSS for styling
@@ -83,7 +83,11 @@ The frontend scaffold includes:
 Environment variables (frontend):
 
 - `VITE_API_BASE_URL` (default: `http://localhost:3000`)
-- `VITE_ADMIN_API_TOKEN` (admin auth for `/api/rules` and `/api/stats`)
+
+Runtime auth notes (frontend):
+
+- API auth token is read at runtime from browser storage keys (`gatify.adminToken` or `adminToken`) or via secure cookies.
+- No build-time admin token is embedded in the frontend bundle.
 
 ## Project roadmap
 

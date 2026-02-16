@@ -20,7 +20,7 @@ export function DashboardPage() {
   if (hasError || !overview.data || !timeline.data) {
     return (
       <div className="rounded-xl border border-red-500/30 bg-red-950/30 p-4 text-red-200">
-        Failed to load dashboard data. Ensure `VITE_API_BASE_URL` and `VITE_ADMIN_API_TOKEN` are configured.
+        Failed to load dashboard data. Ensure `VITE_API_BASE_URL` and runtime admin auth are configured.
       </div>
     )
   }
