@@ -12,17 +12,17 @@ Gatify currently reads configuration from environment variables in `cmd/gatify/m
 | `RATE_LIMIT_REQUESTS` | `100` | No | Allowed requests per window per client key. |
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | No | Window length in seconds. |
 | `ADMIN_API_TOKEN` | _(empty)_ | Yes (for `/api/rules`) | Bearer token for rules management API. |
+| `DATABASE_URL` | _(empty)_ | No (required for `/api/stats`) | PostgreSQL/TimescaleDB DSN used by analytics statistics endpoints. |
 
 ## Optional / test-related
 
 | Variable | Default | Description |
 | --- | ---: | --- |
-| `DATABASE_URL` | `postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable` | Used by analytics integration tests. |
 | `POSTGRES_PASSWORD` | `gatify_dev_password` | Used by Docker Compose TimescaleDB service. |
 
 ## Rules API authentication
 
-When `ADMIN_API_TOKEN` is empty, `/api/rules` endpoints are disabled and return `403`.
+When `ADMIN_API_TOKEN` is empty, `/api/rules` and `/api/stats` endpoints are disabled and return `403`.
 
 Provide token through either:
 
