@@ -70,6 +70,16 @@ The gateway serves:
 - Frontend build: `make web-build`
 - Frontend lint: `make web-lint`
 
+## Releases
+
+- Tagging a semantic version (`vX.Y.Z`) triggers `.github/workflows/release.yml`.
+- Release automation publishes:
+     - GitHub Release with multi-platform binaries (Linux/macOS/Windows, amd64/arm64)
+     - Generated changelog
+     - Multi-arch container image to GHCR:
+          - `ghcr.io/siruyy/gatify:<version>`
+          - `ghcr.io/siruyy/gatify:latest`
+
 ## Dashboard scaffold (`web/`)
 
 The frontend scaffold includes:

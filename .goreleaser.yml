@@ -1,0 +1,58 @@
+version: 2
+
+project_name: gatify
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: gatify
+    main: ./cmd/gatify
+    binary: gatify
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+nfpms:
+  - id: packages
+    package_name: gatify
+    homepage: https://github.com/Siruyy/gatify
+    maintainer: Siruyy
+    description: Self-hosted API gateway with rate limiting and analytics.
+    license: MIT
+    formats:
+      - deb
+      - rpm
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+
+release:
+  github:
+    owner: Siruyy
+    name: gatify
+  draft: false
+  prerelease: auto
+
+checksum:
+  name_template: "checksums.txt"

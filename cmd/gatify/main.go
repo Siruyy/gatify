@@ -22,8 +22,10 @@ import (
 	_ "github.com/lib/pq"
 )
 
+var version = "dev"
+
 func main() {
-	fmt.Println("🛡️  Gatify - Starting...")
+	fmt.Printf("🛡️  Gatify - Starting (version: %s)...\n", version)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
