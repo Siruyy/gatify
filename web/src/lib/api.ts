@@ -7,16 +7,20 @@ type RequestOptions = {
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const headers = new Headers({
-    'Content-Type': 'application/json',
-  })
+  const headers = new Headers()
+  const method = (options.method ?? 'GET').toUpperCase()
+  const methodImpliesBody = method === 'POST' || method === 'PUT' || method === 'PATCH'
 
   if (options.authToken) {
     headers.set('Authorization', `Bearer ${options.authToken}`)
   }
 
+  if (options.body || methodImpliesBody) {
+    headers.set('Content-Type', 'application/json')
+  }
+
   const response = await fetch(`${apiBaseURL}${path}`, {
-    method: options.method ?? 'GET',
+    method,
     headers,
     credentials: 'include',
     body: options.body ? JSON.stringify(options.body) : undefined,

@@ -42,14 +42,22 @@ function getLegacyStorageToken(): string | undefined {
   }
 
   for (const key of LEGACY_STORAGE_KEYS) {
-    const fromSession = window.sessionStorage.getItem(key)?.trim()
-    if (fromSession) {
-      return fromSession
+    try {
+      const fromSession = window.sessionStorage.getItem(key)?.trim()
+      if (fromSession) {
+        return fromSession
+      }
+    } catch {
+      // Storage access can throw in privacy-restricted browser contexts.
     }
 
-    const fromLocal = window.localStorage.getItem(key)?.trim()
-    if (fromLocal) {
-      return fromLocal
+    try {
+      const fromLocal = window.localStorage.getItem(key)?.trim()
+      if (fromLocal) {
+        return fromLocal
+      }
+    } catch {
+      // Storage access can throw in privacy-restricted browser contexts.
     }
   }
 

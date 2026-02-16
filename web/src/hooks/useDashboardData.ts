@@ -29,19 +29,22 @@ export type Rule = {
 }
 
 export function useOverview(window = '24h') {
-  return useQuery({
+  return useQuery<Overview | null>({
     queryKey: ['stats-overview', window],
     queryFn: async () => {
       const payload = await apiRequest<ApiEnvelope<Overview>>(`/api/stats/overview?window=${encodeURIComponent(window)}`, {
         authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
       })
+      if (!payload) {
+        return null
+      }
       return payload.data
     },
   })
 }
 
 export function useTimeline(window = '24h', bucket = '1h') {
-  return useQuery({
+  return useQuery<TrafficPoint[] | null>({
     queryKey: ['stats-timeline', window, bucket],
     queryFn: async () => {
       const payload = await apiRequest<ApiEnvelope<TrafficPoint[]>>(
@@ -50,18 +53,24 @@ export function useTimeline(window = '24h', bucket = '1h') {
           authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
         },
       )
+      if (!payload) {
+        return null
+      }
       return payload.data
     },
   })
 }
 
 export function useRules() {
-  return useQuery({
+  return useQuery<Rule[] | null>({
     queryKey: ['rules-list'],
     queryFn: async () => {
       const payload = await apiRequest<ApiEnvelope<Rule[]>>('/api/rules', {
         authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
       })
+      if (!payload) {
+        return null
+      }
       return payload.data
     },
   })
