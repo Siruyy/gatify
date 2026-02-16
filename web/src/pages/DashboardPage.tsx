@@ -1,7 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { SummaryCard } from '../components/SummaryCard'
 import { TrafficChart } from '../components/TrafficChart'
 import { useOverview, useTimeline } from '../hooks/useDashboardData'
+import { apiBaseURL } from '../lib/api'
+import { getRuntimeAdminToken } from '../lib/auth'
 
 type RangeOption = {
   label: string
@@ -37,9 +39,18 @@ function toPercent(ratio: number) {
   return `${(ratio * 100).toFixed(1)}%`
 }
 
+function buildStatsStreamURL(token: string): string {
+  const url = new URL(apiBaseURL)
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  url.pathname = '/api/stats/stream'
+  url.searchParams.set('token', token)
+  return url.toString()
+}
+
 export function DashboardPage() {
   const [selectedWindow, setSelectedWindow] = useState('24h')
   const [liveEnabled, setLiveEnabled] = useState(true)
+  const runtimeToken = getRuntimeAdminToken({ useLegacyStorage: false })
 
   const selectedRange = useMemo(() => {
     return RANGE_OPTIONS.find((option) => option.window === selectedWindow) ?? RANGE_OPTIONS[1]
@@ -49,6 +60,11 @@ export function DashboardPage() {
 
   const overview = useOverview(selectedRange.window, { refetchInterval })
   const timeline = useTimeline(selectedRange.window, selectedRange.bucket, { refetchInterval })
+  const { refetch: refetchOverview } = overview
+  const { refetch: refetchTimeline } = timeline
+
+  const [streamStatus, setStreamStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle')
+  const lastRefreshAtRef = useRef(0)
 
   const isLoading = overview.isLoading || timeline.isLoading
   const isRefreshing = overview.isFetching || timeline.isFetching
@@ -71,6 +87,56 @@ export function DashboardPage() {
     void Promise.all([overview.refetch(), timeline.refetch()])
   }
 
+  useEffect(() => {
+    if (!liveEnabled || !runtimeToken) {
+      return
+    }
+
+    let active = true
+    const ws = new WebSocket(buildStatsStreamURL(runtimeToken))
+
+    ws.onopen = () => {
+      if (!active) {
+        return
+      }
+      setStreamStatus('connected')
+    }
+
+    ws.onmessage = () => {
+      if (!active) {
+        return
+      }
+
+      const now = Date.now()
+      if (now - lastRefreshAtRef.current < 2_000) {
+        return
+      }
+
+      lastRefreshAtRef.current = now
+      void refetchOverview()
+      void refetchTimeline()
+    }
+
+    ws.onerror = () => {
+      if (!active) {
+        return
+      }
+      setStreamStatus('error')
+    }
+
+    ws.onclose = () => {
+      if (!active) {
+        return
+      }
+      setStreamStatus('idle')
+    }
+
+    return () => {
+      active = false
+      ws.close()
+    }
+  }, [liveEnabled, refetchOverview, refetchTimeline, runtimeToken])
+
   if (isLoading) {
     return <p className="text-slate-300">Loading dashboard data...</p>
   }
@@ -83,12 +149,21 @@ export function DashboardPage() {
     )
   }
 
+  const streamStatusLabel = !liveEnabled || !runtimeToken
+    ? 'idle'
+    : streamStatus === 'idle'
+      ? 'connecting…'
+      : streamStatus
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 className="text-2xl font-semibold text-white">Traffic Overview</h2>
           <p className="mt-1 text-sm text-slate-400">{selectedRange.description}</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Live stream: {streamStatusLabel}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

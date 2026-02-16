@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Siruyy/gatify/internal/storage"
 )
@@ -26,6 +27,19 @@ type GatewayProxy struct {
 	proxy      *httputil.ReverseProxy
 	limiter    RateLimiter
 	trustProxy bool
+	eventSink  func(Event)
+}
+
+// Event represents a single gateway request outcome for live streaming.
+type Event struct {
+	Timestamp time.Time `json:"timestamp"`
+	ClientID  string    `json:"client_id"`
+	Method    string    `json:"method"`
+	Path      string    `json:"path"`
+	Allowed   bool      `json:"allowed"`
+	Limit     int64     `json:"limit,omitempty"`
+	Remaining int64     `json:"remaining,omitempty"`
+	Status    int       `json:"status"`
 }
 
 // Option configures optional GatewayProxy behavior.
@@ -37,6 +51,13 @@ type Option func(*GatewayProxy)
 func WithTrustProxy(trust bool) Option {
 	return func(gp *GatewayProxy) {
 		gp.trustProxy = trust
+	}
+}
+
+// WithEventSink configures a callback for request outcome events.
+func WithEventSink(sink func(Event)) Option {
+	return func(gp *GatewayProxy) {
+		gp.eventSink = sink
 	}
 }
 
@@ -73,8 +94,12 @@ func New(target *url.URL, limiter RateLimiter, opts ...Option) (*GatewayProxy, e
 
 // ServeHTTP applies rate limiting and proxies allowed requests to backend.
 func (gp *GatewayProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	clientID := gp.clientKey(r)
+	result := storage.Result{}
+
 	if gp.limiter != nil {
-		result, err := gp.limiter.Allow(r.Context(), gp.clientKey(r))
+		var err error
+		result, err = gp.limiter.Allow(r.Context(), clientID)
 		if err != nil {
 			log.Printf("proxy: limiter error: %v", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{
@@ -88,6 +113,17 @@ func (gp *GatewayProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(result.ResetAt.Unix(), 10))
 
 		if !result.Allowed {
+			gp.publishEvent(Event{
+				Timestamp: time.Now().UTC(),
+				ClientID:  clientID,
+				Method:    r.Method,
+				Path:      r.URL.Path,
+				Allowed:   false,
+				Limit:     result.Limit,
+				Remaining: result.Remaining,
+				Status:    http.StatusTooManyRequests,
+			})
+
 			writeJSON(w, http.StatusTooManyRequests, map[string]any{
 				"error":     "rate limit exceeded",
 				"limit":     result.Limit,
@@ -98,7 +134,24 @@ func (gp *GatewayProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	gp.publishEvent(Event{
+		Timestamp: time.Now().UTC(),
+		ClientID:  clientID,
+		Method:    r.Method,
+		Path:      r.URL.Path,
+		Allowed:   true,
+		Limit:     result.Limit,
+		Remaining: result.Remaining,
+		Status:    http.StatusOK,
+	})
+
 	gp.proxy.ServeHTTP(w, r)
+}
+
+func (gp *GatewayProxy) publishEvent(event Event) {
+	if gp.eventSink != nil {
+		gp.eventSink(event)
+	}
 }
 
 func (gp *GatewayProxy) clientKey(r *http.Request) string {
