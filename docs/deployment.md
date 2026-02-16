@@ -35,11 +35,11 @@ Verify:
 
 Before serving production traffic, run schema migrations against TimescaleDB:
 
-- `make migrate-up DATABASE_URL="postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable"`
+- `make migrate-up DATABASE_URL="postgres://gatify:${POSTGRES_PASSWORD}@localhost:5432/gatify?sslmode=disable"`
 
 Check migration status:
 
-- `make migrate-version DATABASE_URL="postgres://gatify:gatify_dev_password@localhost:5432/gatify?sslmode=disable"`
+- `make migrate-version DATABASE_URL="postgres://gatify:${POSTGRES_PASSWORD}@localhost:5432/gatify?sslmode=disable"`
 
 ## 4) Configure TLS/SSL
 
