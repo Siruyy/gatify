@@ -30,10 +30,16 @@ function downloadCsv(filename: string, headers: string[], rows: string[][]) {
 }
 
 function escapeCsv(value: string) {
-  if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-    return `"${value.replaceAll('"', '""')}"`
+  let sanitized = value
+
+  if (/^[=+\-@]/.test(sanitized)) {
+    sanitized = `'${sanitized}`
   }
-  return value
+
+  if (sanitized.includes(',') || sanitized.includes('"') || sanitized.includes('\n')) {
+    return `"${sanitized.replaceAll('"', '""')}"`
+  }
+  return sanitized
 }
 
 export function AnalyticsPage() {
@@ -153,11 +159,11 @@ export function AnalyticsPage() {
           <h3 className="text-sm font-medium text-slate-200">Quick Stats</h3>
           <dl className="mt-4 space-y-3 text-sm">
             <div className="flex items-center justify-between">
-              <dt className="text-slate-400">Blocked Clients</dt>
+              <dt className="text-slate-400">Blocked Clients (Top 15)</dt>
               <dd className="font-medium text-white">{topBlocked.length}</dd>
             </div>
             <div className="flex items-center justify-between">
-              <dt className="text-slate-400">Total Blocked</dt>
+              <dt className="text-slate-400">Total Blocked (Top 15)</dt>
               <dd className="font-medium text-white">
                 {topBlocked.reduce((sum, item) => sum + item.blocked_count, 0).toLocaleString()}
               </dd>
