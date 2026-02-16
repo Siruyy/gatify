@@ -13,6 +13,11 @@ export type Overview = {
   block_rate: number
 }
 
+export type TopBlockedClient = {
+  client_id: string
+  blocked_count: number
+}
+
 export type IdentifyBy = 'ip' | 'header'
 
 export type Rule = {
@@ -76,6 +81,25 @@ export function useTimeline(window = '24h', bucket = '1h', options: DashboardQue
     queryFn: async () => {
       const payload = await apiRequest<ApiEnvelope<TrafficPoint[]>>(
         `/api/stats/timeline?window=${encodeURIComponent(window)}&bucket=${encodeURIComponent(bucket)}`,
+        {
+          authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
+        },
+      )
+      if (!payload) {
+        return null
+      }
+      return payload.data
+    },
+  })
+}
+
+export function useTopBlocked(window = '24h', limit = 10, options: DashboardQueryOptions = {}) {
+  return useQuery<TopBlockedClient[] | null>({
+    queryKey: ['stats-top-blocked', window, limit],
+    refetchInterval: options.refetchInterval,
+    queryFn: async () => {
+      const payload = await apiRequest<ApiEnvelope<TopBlockedClient[]>>(
+        `/api/stats/top-blocked?window=${encodeURIComponent(window)}&limit=${encodeURIComponent(String(limit))}`,
         {
           authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
         },
