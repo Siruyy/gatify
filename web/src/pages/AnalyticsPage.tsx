@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
+import { Skeleton, SummaryCardSkeleton } from '../components/Skeleton'
 import { TrafficChart } from '../components/TrafficChart'
 import { useTimeline, useTopBlocked } from '../hooks/useDashboardData'
+import { escapeCsv } from '../lib/utils'
 
 type WindowOption = {
   label: string
@@ -29,19 +31,6 @@ function downloadCsv(filename: string, headers: string[], rows: string[][]) {
   URL.revokeObjectURL(url)
 }
 
-function escapeCsv(value: string) {
-  let sanitized = value
-
-  if (/^[=+\-@]/.test(sanitized)) {
-    sanitized = `'${sanitized}`
-  }
-
-  if (sanitized.includes(',') || sanitized.includes('"') || sanitized.includes('\n')) {
-    return `"${sanitized.replaceAll('"', '""')}"`
-  }
-  return sanitized
-}
-
 export function AnalyticsPage() {
   const [selectedWindow, setSelectedWindow] = useState('24h')
 
@@ -56,7 +45,20 @@ export function AnalyticsPage() {
   const hasError = timelineQuery.isError || topBlockedQuery.isError
 
   if (isLoading) {
-    return <p className="text-slate-300">Loading analytics...</p>
+    return (
+      <section className="space-y-6">
+        <div>
+          <Skeleton className="mb-2 h-7 w-40" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <SummaryCardSkeleton />
+          <SummaryCardSkeleton />
+          <SummaryCardSkeleton />
+        </div>
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </section>
+    )
   }
 
   if (hasError || !timelineQuery.data || !topBlockedQuery.data) {

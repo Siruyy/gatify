@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Skeleton, SummaryCardSkeleton } from '../components/Skeleton'
 import { SummaryCard } from '../components/SummaryCard'
 import { TrafficChart } from '../components/TrafficChart'
 import { useOverview, useTimeline } from '../hooks/useDashboardData'
@@ -138,7 +139,21 @@ export function DashboardPage() {
   }, [liveEnabled, refetchOverview, refetchTimeline, runtimeToken])
 
   if (isLoading) {
-    return <p className="text-slate-300">Loading dashboard data...</p>
+    return (
+      <section className="space-y-6">
+        <div>
+          <Skeleton className="mb-2 h-7 w-48" />
+          <Skeleton className="h-4 w-72" />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryCardSkeleton />
+          <SummaryCardSkeleton />
+          <SummaryCardSkeleton />
+          <SummaryCardSkeleton />
+        </div>
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </section>
+    )
   }
 
   if (hasError || !overview.data || !timeline.data) {

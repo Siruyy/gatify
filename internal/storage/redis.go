@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"strconv"
 	"sync"
@@ -112,8 +112,7 @@ func NewRedisStorage(ctx context.Context, cfg RedisConfig) (*RedisStorage, error
 		return nil, fmt.Errorf("redis: failed to load Lua scripts: %w", err)
 	}
 
-	log.Printf("redis: connected to %s (pool_size=%d, min_idle=%d)",
-		cfg.Addr, cfg.PoolSize, cfg.MinIdleConns)
+	slog.Info("redis: connected", "addr", cfg.Addr, "pool_size", cfg.PoolSize, "min_idle", cfg.MinIdleConns)
 
 	return rs, nil
 }
@@ -298,7 +297,7 @@ func (rs *RedisStorage) Close() error {
 	}
 
 	rs.closed = true
-	log.Println("redis: closing connection")
+	slog.Info("redis: closing connection")
 
 	if rs.client == nil {
 		return nil

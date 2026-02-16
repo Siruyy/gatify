@@ -2,9 +2,11 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
+	gatifyhttp "github.com/Siruyy/gatify/internal/httputil"
 	"github.com/gorilla/websocket"
 )
 
@@ -80,33 +82,48 @@ func (b *StatsStreamBroker) Subscribe() (<-chan StatsStreamEvent, func()) {
 
 // StatsStreamHandler serves live events over WebSocket.
 type StatsStreamHandler struct {
-	broker   *StatsStreamBroker
-	upgrader websocket.Upgrader
+	broker         *StatsStreamBroker
+	upgrader       websocket.Upgrader
+	allowedOrigins map[string]bool
 }
 
 // NewStatsStreamHandler creates a WebSocket stream handler.
-func NewStatsStreamHandler(broker *StatsStreamBroker) *StatsStreamHandler {
+// If allowedOrigins is non-empty, only those origins will be accepted.
+func NewStatsStreamHandler(broker *StatsStreamBroker, allowedOrigins []string) *StatsStreamHandler {
 	if broker == nil {
 		broker = NewStatsStreamBroker(64)
 	}
 
-	return &StatsStreamHandler{
-		broker: broker,
-		upgrader: websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-			CheckOrigin: func(_ *http.Request) bool {
+	originSet := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		originSet[strings.ToLower(strings.TrimSpace(o))] = true
+	}
+
+	h := &StatsStreamHandler{
+		broker:         broker,
+		allowedOrigins: originSet,
+	}
+
+	h.upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			if len(h.allowedOrigins) == 0 {
 				return true
-			},
+			}
+			origin := strings.ToLower(strings.TrimSpace(r.Header.Get("Origin")))
+			return h.allowedOrigins[origin]
 		},
 	}
+
+	return h
 }
 
 // ServeHTTP upgrades requests to WebSocket and streams live events.
 func (h *StatsStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		gatifyhttp.WriteJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
 		return
 	}
 

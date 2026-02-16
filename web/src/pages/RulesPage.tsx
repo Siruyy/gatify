@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react'
+import { TableSkeleton } from '../components/Skeleton'
 import {
   useCreateRule,
   useDeleteRule,
@@ -8,6 +9,7 @@ import {
   type Rule,
   type RulePayload,
 } from '../hooks/useDashboardData'
+import { validateRuleForm } from '../lib/utils'
 
 type FormState = {
   name: string
@@ -66,41 +68,6 @@ function ruleToPayload(rule: Rule): RulePayload {
     header_name: rule.identify_by === 'header' ? rule.header_name ?? undefined : undefined,
     enabled: rule.enabled,
   }
-}
-
-function validateForm(form: FormState): string | null {
-  if (!form.name.trim()) {
-    return 'Name is required.'
-  }
-  if (!form.pattern.trim()) {
-    return 'Pattern is required.'
-  }
-
-  const limit = Number(form.limit)
-  if (!Number.isInteger(limit) || limit <= 0) {
-    return 'Limit must be a positive integer.'
-  }
-
-  const priority = Number(form.priority)
-  if (!Number.isInteger(priority) || priority < 0) {
-    return 'Priority must be a non-negative integer.'
-  }
-
-  const windowSeconds = Number(form.window_seconds)
-  if (!Number.isInteger(windowSeconds) || windowSeconds <= 0) {
-    return 'Window must be a positive integer (seconds).'
-  }
-
-  const methods = parseMethods(form.methods)
-  if (methods.length === 0) {
-    return 'At least one HTTP method is required.'
-  }
-
-  if (form.identify_by === 'header' && !form.header_name.trim()) {
-    return 'Header name is required when identify by is set to header.'
-  }
-
-  return null
 }
 
 function buildPayload(form: FormState): RulePayload {
@@ -258,7 +225,7 @@ export function RulesPage() {
     setFormError(null)
     setActionError(null)
 
-    const validationError = validateForm(form)
+    const validationError = validateRuleForm(form)
     if (validationError) {
       setFormError(validationError)
       return
@@ -315,7 +282,32 @@ export function RulesPage() {
   }
 
   if (rulesQuery.isLoading) {
-    return <p className="text-slate-300">Loading rules...</p>
+    return (
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-2xl font-semibold text-white">Rules Management</h2>
+          <p className="mt-1 text-sm text-slate-400">Loading rules...</p>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-slate-800">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-900/80 text-left text-xs uppercase text-slate-400">
+              <tr>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">Pattern</th>
+                <th className="px-4 py-3">Methods</th>
+                <th className="px-4 py-3">Limit</th>
+                <th className="px-4 py-3">Window</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <TableSkeleton rows={4} columns={7} />
+            </tbody>
+          </table>
+        </div>
+      </section>
+    )
   }
 
   if (rulesQuery.isError) {

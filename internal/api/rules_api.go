@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"sort"
 	"strconv"
@@ -14,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	gatifyhttp "github.com/Siruyy/gatify/internal/httputil"
 	"github.com/Siruyy/gatify/internal/rules"
 )
 
@@ -40,15 +40,15 @@ type Rule struct {
 
 // RuleRequest is the request payload for create/update operations.
 type RuleRequest struct {
-	Name          string  `json:"name"`
-	Pattern       string  `json:"pattern"`
+	Name          string   `json:"name"`
+	Pattern       string   `json:"pattern"`
 	Methods       []string `json:"methods,omitempty"`
-	Priority      int     `json:"priority"`
-	Limit         int64   `json:"limit"`
-	WindowSeconds int64   `json:"window_seconds"`
-	IdentifyBy    string  `json:"identify_by,omitempty"`
-	HeaderName    string  `json:"header_name,omitempty"`
-	Enabled       *bool   `json:"enabled,omitempty"`
+	Priority      int      `json:"priority"`
+	Limit         int64    `json:"limit"`
+	WindowSeconds int64    `json:"window_seconds"`
+	IdentifyBy    string   `json:"identify_by,omitempty"`
+	HeaderName    string   `json:"header_name,omitempty"`
+	Enabled       *bool    `json:"enabled,omitempty"`
 }
 
 // RuleRepository defines persistence behavior for rules API.
@@ -158,12 +158,34 @@ func (r *InMemoryRepository) Delete(_ context.Context, id string) error {
 
 // RulesHandler provides REST CRUD endpoints for rules.
 type RulesHandler struct {
-	repo RuleRepository
+	repo           RuleRepository
+	onRulesChanged func()
+}
+
+// RulesHandlerOption configures optional RulesHandler behavior.
+type RulesHandlerOption func(*RulesHandler)
+
+// WithOnRulesChanged configures a callback invoked after any rule mutation
+// (create, update, delete) so the caller can rebuild the rules matcher.
+func WithOnRulesChanged(fn func()) RulesHandlerOption {
+	return func(h *RulesHandler) {
+		h.onRulesChanged = fn
+	}
 }
 
 // NewRulesHandler creates a rules REST API handler.
-func NewRulesHandler(repo RuleRepository) *RulesHandler {
-	return &RulesHandler{repo: repo}
+func NewRulesHandler(repo RuleRepository, opts ...RulesHandlerOption) *RulesHandler {
+	h := &RulesHandler{repo: repo}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
+}
+
+func (h *RulesHandler) notifyChanged() {
+	if h.onRulesChanged != nil {
+		h.onRulesChanged()
+	}
 }
 
 // ServeHTTP handles /api/rules and /api/rules/:id.
@@ -197,34 +219,35 @@ func (h *RulesHandler) handleCollection(w http.ResponseWriter, r *http.Request) 
 	case http.MethodGet:
 		rulesList, err := h.repo.List(r.Context())
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list rules"})
+			gatifyhttp.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to list rules"})
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]any{"data": rulesList})
+		gatifyhttp.WriteJSON(w, http.StatusOK, map[string]any{"data": rulesList})
 	case http.MethodPost:
 		var req RuleRequest
 		if err := decodeJSON(r, &req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			gatifyhttp.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 
 		rule, err := validateAndBuildRule(req)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			gatifyhttp.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 
 		created, err := h.repo.Create(r.Context(), rule)
 		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create rule"})
+			gatifyhttp.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to create rule"})
 			return
 		}
 
-		writeJSON(w, http.StatusCreated, map[string]any{"data": created})
+		h.notifyChanged()
+		gatifyhttp.WriteJSON(w, http.StatusCreated, map[string]any{"data": created})
 	default:
 		w.Header().Set("Allow", "GET, POST")
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		gatifyhttp.WriteJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
 	}
 }
 
@@ -234,30 +257,30 @@ func (h *RulesHandler) handleItem(w http.ResponseWriter, r *http.Request, id str
 		rule, err := h.repo.GetByID(r.Context(), id)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
-				writeJSON(w, http.StatusNotFound, map[string]string{"error": "rule not found"})
+				gatifyhttp.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "rule not found"})
 				return
 			}
 
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get rule"})
+			gatifyhttp.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get rule"})
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]any{"data": rule})
+		gatifyhttp.WriteJSON(w, http.StatusOK, map[string]any{"data": rule})
 	case http.MethodPut:
 		existing, err := h.repo.GetByID(r.Context(), id)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
-				writeJSON(w, http.StatusNotFound, map[string]string{"error": "rule not found"})
+				gatifyhttp.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "rule not found"})
 				return
 			}
 
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get rule"})
+			gatifyhttp.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to get rule"})
 			return
 		}
 
 		var req RuleRequest
 		if err := decodeJSON(r, &req); err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			gatifyhttp.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 
@@ -265,45 +288,52 @@ func (h *RulesHandler) handleItem(w http.ResponseWriter, r *http.Request, id str
 
 		rule, err := validateAndBuildRule(req)
 		if err != nil {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			gatifyhttp.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 
 		updated, err := h.repo.Update(r.Context(), id, rule)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
-				writeJSON(w, http.StatusNotFound, map[string]string{"error": "rule not found"})
+				gatifyhttp.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "rule not found"})
 				return
 			}
 
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update rule"})
+			gatifyhttp.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to update rule"})
 			return
 		}
 
-		writeJSON(w, http.StatusOK, map[string]any{"data": updated})
+		h.notifyChanged()
+		gatifyhttp.WriteJSON(w, http.StatusOK, map[string]any{"data": updated})
 	case http.MethodDelete:
 		err := h.repo.Delete(r.Context(), id)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
-				writeJSON(w, http.StatusNotFound, map[string]string{"error": "rule not found"})
+				gatifyhttp.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "rule not found"})
 				return
 			}
 
-			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete rule"})
+			gatifyhttp.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to delete rule"})
 			return
 		}
 
+		h.notifyChanged()
 		w.WriteHeader(http.StatusNoContent)
 	default:
 		w.Header().Set("Allow", "GET, PUT, DELETE")
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		gatifyhttp.WriteJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
 	}
 }
+
+// maxRequestBodySize limits request body reads to 1MB to prevent OOM attacks.
+const maxRequestBodySize = 1 << 20 // 1 MB
 
 func decodeJSON(r *http.Request, dst any) error {
 	if r.Body == nil {
 		return fmt.Errorf("request body is required")
 	}
+
+	r.Body = http.MaxBytesReader(nil, r.Body, maxRequestBodySize)
 
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
@@ -450,20 +480,4 @@ func mergeRuleRequestWithExisting(req RuleRequest, existing Rule) RuleRequest {
 	}
 
 	return merged
-}
-
-func writeJSON(w http.ResponseWriter, status int, body any) {
-	payload, err := json.Marshal(body)
-	if err != nil {
-		log.Printf("api: failed to encode JSON response: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	if _, err := w.Write(append(payload, '\n')); err != nil {
-		log.Printf("api: failed to write JSON response: %v", err)
-	}
 }
