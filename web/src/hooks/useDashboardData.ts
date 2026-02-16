@@ -47,11 +47,16 @@ type UpdateRuleInput = {
   payload: RulePayload
 }
 
+type DashboardQueryOptions = {
+  refetchInterval?: number | false
+}
+
 const RULES_QUERY_KEY = ['rules-list'] as const
 
-export function useOverview(window = '24h') {
+export function useOverview(window = '24h', options: DashboardQueryOptions = {}) {
   return useQuery<Overview | null>({
     queryKey: ['stats-overview', window],
+    refetchInterval: options.refetchInterval,
     queryFn: async () => {
       const payload = await apiRequest<ApiEnvelope<Overview>>(`/api/stats/overview?window=${encodeURIComponent(window)}`, {
         authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
@@ -64,9 +69,10 @@ export function useOverview(window = '24h') {
   })
 }
 
-export function useTimeline(window = '24h', bucket = '1h') {
+export function useTimeline(window = '24h', bucket = '1h', options: DashboardQueryOptions = {}) {
   return useQuery<TrafficPoint[] | null>({
     queryKey: ['stats-timeline', window, bucket],
+    refetchInterval: options.refetchInterval,
     queryFn: async () => {
       const payload = await apiRequest<ApiEnvelope<TrafficPoint[]>>(
         `/api/stats/timeline?window=${encodeURIComponent(window)}&bucket=${encodeURIComponent(bucket)}`,
