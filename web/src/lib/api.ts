@@ -15,7 +15,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     headers.set('Authorization', `Bearer ${options.authToken}`)
   }
 
-  if (options.body || methodImpliesBody) {
+  if (options.body != null || methodImpliesBody) {
     headers.set('Content-Type', 'application/json')
   }
 
@@ -23,7 +23,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     method,
     headers,
     credentials: 'include',
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: options.body != null ? JSON.stringify(options.body) : undefined,
   })
 
   if (!response.ok) {
