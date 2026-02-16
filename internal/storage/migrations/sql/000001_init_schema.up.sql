@@ -3,10 +3,13 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 CREATE TABLE IF NOT EXISTS rules (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  path_pattern TEXT NOT NULL,
-  http_method TEXT NOT NULL,
+  pattern TEXT NOT NULL,
+  methods TEXT[] NOT NULL,
+  priority INTEGER NOT NULL DEFAULT 0,
   limit_value BIGINT NOT NULL CHECK (limit_value > 0),
   window_seconds INTEGER NOT NULL CHECK (window_seconds > 0),
+  identify_by TEXT NOT NULL DEFAULT 'ip',
+  header_name TEXT,
   enabled BOOLEAN NOT NULL DEFAULT TRUE,
   description TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -45,9 +48,12 @@ CREATE INDEX IF NOT EXISTS idx_rate_limit_events_path_time
 CREATE INDEX IF NOT EXISTS idx_rate_limit_events_allowed_time
   ON rate_limit_events (allowed, timestamp DESC);
 
+CREATE INDEX IF NOT EXISTS idx_rate_limit_events_client_time
+  ON rate_limit_events (client_id, timestamp DESC);
+
 ALTER TABLE rate_limit_events SET (
   timescaledb.compress,
-  timescaledb.compress_segmentby = 'rule_id,method,path',
+  timescaledb.compress_segmentby = 'rule_id,method',
   timescaledb.compress_orderby = 'timestamp DESC'
 );
 

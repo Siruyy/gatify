@@ -44,16 +44,16 @@ func setupTestDB(t *testing.T) *sql.DB {
 	// Create test table
 	_, err = db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS rate_limit_events (
-			id SERIAL PRIMARY KEY,
+			id BIGSERIAL PRIMARY KEY,
 			timestamp TIMESTAMPTZ NOT NULL,
 			client_id TEXT NOT NULL,
 			method TEXT NOT NULL,
 			path TEXT NOT NULL,
 			allowed BOOLEAN NOT NULL,
-			rule_id TEXT,
-			limit_value BIGINT,
-			remaining BIGINT,
-			response_ms BIGINT
+			rule_id TEXT NOT NULL,
+			limit_value BIGINT NOT NULL,
+			remaining BIGINT NOT NULL,
+			response_ms BIGINT NOT NULL
 		)
 	`)
 	if err != nil {
