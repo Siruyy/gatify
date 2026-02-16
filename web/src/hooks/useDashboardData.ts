@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiRequest } from '../lib/api'
 import type { ApiEnvelope } from '../lib/api'
 import type { TrafficPoint } from '../components/TrafficChart'
@@ -13,6 +13,8 @@ export type Overview = {
   block_rate: number
 }
 
+export type IdentifyBy = 'ip' | 'header'
+
 export type Rule = {
   id: string
   name: string
@@ -21,12 +23,31 @@ export type Rule = {
   priority: number
   limit: number
   window_seconds: number
-  identify_by: string
+  identify_by: IdentifyBy
   header_name?: string
   enabled: boolean
   created_at: string
   updated_at: string
 }
+
+export type RulePayload = {
+  name: string
+  pattern: string
+  methods: string[]
+  priority: number
+  limit: number
+  window_seconds: number
+  identify_by: IdentifyBy
+  header_name?: string
+  enabled?: boolean
+}
+
+type UpdateRuleInput = {
+  id: string
+  payload: RulePayload
+}
+
+const RULES_QUERY_KEY = ['rules-list'] as const
 
 export function useOverview(window = '24h') {
   return useQuery<Overview | null>({
@@ -63,7 +84,7 @@ export function useTimeline(window = '24h', bucket = '1h') {
 
 export function useRules() {
   return useQuery<Rule[] | null>({
-    queryKey: ['rules-list'],
+    queryKey: RULES_QUERY_KEY,
     queryFn: async () => {
       const payload = await apiRequest<ApiEnvelope<Rule[]>>('/api/rules', {
         authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
@@ -72,6 +93,58 @@ export function useRules() {
         return null
       }
       return payload.data
+    },
+  })
+}
+
+export function useCreateRule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: RulePayload) => {
+      const response = await apiRequest<ApiEnvelope<Rule>>('/api/rules', {
+        method: 'POST',
+        authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
+        body: payload,
+      })
+      return response.data
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: RULES_QUERY_KEY })
+    },
+  })
+}
+
+export function useUpdateRule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ id, payload }: UpdateRuleInput) => {
+      const response = await apiRequest<ApiEnvelope<Rule>>(`/api/rules/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
+        body: payload,
+      })
+      return response.data
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: RULES_QUERY_KEY })
+    },
+  })
+}
+
+export function useDeleteRule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest<null>(`/api/rules/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        authToken: getRuntimeAdminToken({ useLegacyStorage: false }),
+      })
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: RULES_QUERY_KEY })
     },
   })
 }
