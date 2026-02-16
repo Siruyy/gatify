@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	gatifyhttp "github.com/Siruyy/gatify/internal/httputil"
@@ -33,9 +34,9 @@ type GatewayProxy struct {
 	proxy      *httputil.ReverseProxy
 	limiter    RateLimiter
 	store      SlidingWindowStore
-	matcher    *rules.Matcher
+	matcher    atomic.Pointer[rules.Matcher]
 	trustProxy bool
-	eventSink  func(Event)
+	eventSink  atomic.Pointer[func(Event)]
 }
 
 // Event represents a single gateway request outcome for live streaming.
@@ -65,7 +66,7 @@ func WithTrustProxy(trust bool) Option {
 // WithEventSink configures a callback for request outcome events.
 func WithEventSink(sink func(Event)) Option {
 	return func(gp *GatewayProxy) {
-		gp.eventSink = sink
+		gp.eventSink.Store(&sink)
 	}
 }
 
@@ -73,7 +74,7 @@ func WithEventSink(sink func(Event)) Option {
 // Requires WithStore to also be set for per-rule sliding window checks.
 func WithRulesMatcher(matcher *rules.Matcher) Option {
 	return func(gp *GatewayProxy) {
-		gp.matcher = matcher
+		gp.matcher.Store(matcher)
 	}
 }
 
@@ -121,8 +122,9 @@ func (gp *GatewayProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	result := storage.Result{}
 
 	// Check per-route rules first if the rules engine is wired in.
-	if gp.matcher != nil && gp.store != nil {
-		match := gp.matcher.Match(r.Method, r.URL.Path)
+	currentMatcher := gp.matcher.Load()
+	if currentMatcher != nil && gp.store != nil {
+		match := currentMatcher.Match(r.Method, r.URL.Path)
 		if match != nil {
 			rule := match.Rule
 
@@ -202,18 +204,8 @@ func (gp *GatewayProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var err error
 		result, err = gp.limiter.Allow(r.Context(), clientID)
 		if err != nil {
-			// Graceful degradation: if the rate limiter is unavailable (e.g. Redis
-			// is down), allow the request through rather than blocking all traffic.
-			slog.Warn("proxy: limiter error, allowing request", "error", err)
-			gp.publishEvent(Event{
-				Timestamp: time.Now().UTC(),
-				ClientID:  clientID,
-				Method:    r.Method,
-				Path:      r.URL.Path,
-				Allowed:   true,
-				Status:    http.StatusOK,
-			})
-			gp.proxy.ServeHTTP(w, r)
+			slog.Error("proxy: limiter error", "error", err)
+			http.Error(w, "rate limiter unavailable", http.StatusInternalServerError)
 			return
 		}
 
@@ -258,25 +250,28 @@ func (gp *GatewayProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (gp *GatewayProxy) publishEvent(event Event) {
-	if gp.eventSink != nil {
-		gp.eventSink(event)
+	if p := gp.eventSink.Load(); p != nil {
+		(*p)(event)
 	}
 }
 
 // SetMatcher atomically replaces the current rules matcher.
 // This allows hot-reloading rules without restarting the proxy.
 func (gp *GatewayProxy) SetMatcher(m *rules.Matcher) {
-	gp.matcher = m
+	gp.matcher.Store(m)
 }
 
 // EventSink returns the current event sink callback (may be nil).
 func (gp *GatewayProxy) EventSink() func(Event) {
-	return gp.eventSink
+	if p := gp.eventSink.Load(); p != nil {
+		return *p
+	}
+	return nil
 }
 
 // SetEventSink replaces the event sink callback.
 func (gp *GatewayProxy) SetEventSink(sink func(Event)) {
-	gp.eventSink = sink
+	gp.eventSink.Store(&sink)
 }
 
 func (gp *GatewayProxy) clientKey(r *http.Request) string {

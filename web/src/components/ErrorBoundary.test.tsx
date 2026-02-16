@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ErrorBoundary } from './ErrorBoundary'
 
 function ThrowingChild({ shouldThrow = true }: { shouldThrow?: boolean }) {
@@ -9,6 +9,10 @@ function ThrowingChild({ shouldThrow = true }: { shouldThrow?: boolean }) {
   }
   return <div>Child rendered</div>
 }
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('ErrorBoundary', () => {
   it('renders children when no error occurs', () => {

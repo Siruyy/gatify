@@ -3,7 +3,7 @@
  * Uses Tailwind's animate-pulse with a rounded background.
  */
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulse rounded-md bg-slate-700/50 ${className}`} />
+  return <div aria-hidden="true" className={`animate-pulse rounded-md bg-slate-700/50 ${className}`} />
 }
 
 /** A skeleton card that mimics the standard SummaryCard shape. */

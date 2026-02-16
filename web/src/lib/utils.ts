@@ -6,7 +6,7 @@
 export function escapeCsv(value: string): string {
   let sanitized = value
 
-  if (/^[=+\-@]/.test(sanitized)) {
+  if (/^\s*[=+\-@]/.test(sanitized)) {
     sanitized = `'${sanitized}`
   }
 

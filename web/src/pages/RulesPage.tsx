@@ -294,13 +294,15 @@ export function RulesPage() {
               <tr>
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Pattern</th>
+                <th className="px-4 py-3">Methods</th>
                 <th className="px-4 py-3">Limit</th>
                 <th className="px-4 py-3">Window</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody>
-              <TableSkeleton rows={4} columns={5} />
+              <TableSkeleton rows={4} columns={7} />
             </tbody>
           </table>
         </div>

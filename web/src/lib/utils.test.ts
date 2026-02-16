@@ -29,6 +29,11 @@ describe('escapeCsv', () => {
     // Formula char + comma → quoted with prefix
     expect(escapeCsv('=a,b')).toBe("\"'=a,b\"")
   })
+
+  it('prefixes formula tokens with leading whitespace', () => {
+    expect(escapeCsv('  =1+1')).toBe("'  =1+1")
+    expect(escapeCsv(' +cmd')).toBe("' +cmd")
+  })
 })
 
 describe('validateRuleForm', () => {
@@ -60,6 +65,11 @@ describe('validateRuleForm', () => {
     expect(validateRuleForm({ ...validForm, limit: '0' })).toBe('Limit must be a positive integer.')
     expect(validateRuleForm({ ...validForm, limit: '-5' })).toBe('Limit must be a positive integer.')
     expect(validateRuleForm({ ...validForm, limit: 'abc' })).toBe('Limit must be a positive integer.')
+  })
+
+  it('rejects floating-point limit values', () => {
+    expect(validateRuleForm({ ...validForm, limit: '10.5' })).toBe('Limit must be a positive integer.')
+    expect(validateRuleForm({ ...validForm, limit: '3.14' })).toBe('Limit must be a positive integer.')
   })
 
   it('requires a non-negative integer priority', () => {

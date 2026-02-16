@@ -67,7 +67,11 @@ func main() {
 
 	// Build an initial (empty) rules matcher; it will be updated when
 	// rules are created/modified via the API.
-	initialMatcher, _ := rules.New(nil)
+	initialMatcher, err := rules.New(nil)
+	if err != nil {
+		slog.Error("failed to build initial rules matcher", "error", err)
+		os.Exit(1)
+	}
 
 	gatewayProxy, err := proxy.New(
 		cfg.BackendURL,
@@ -236,21 +240,26 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
-	// Start server in goroutine
+	// Start server in goroutine; send fatal errors to channel so main
+	// can run deferred cleanup instead of os.Exit inside the goroutine.
+	fatalErrCh := make(chan error, 1)
 	go func() {
 		slog.Info("Gatify listening", "addr", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server error", "error", err)
-			os.Exit(1)
+			fatalErrCh <- fmt.Errorf("server listen error: %w", err)
 		}
 	}()
 
-	// Wait for interrupt signal
+	// Wait for interrupt signal or fatal server error
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
 
-	slog.Info("Shutting down Gatify...")
+	select {
+	case sig := <-quit:
+		slog.Info("Received signal, shutting down Gatify...", "signal", sig.String())
+	case err := <-fatalErrCh:
+		slog.Error("fatal server error", "error", err)
+	}
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 

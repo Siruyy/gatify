@@ -4,6 +4,7 @@ package config
 
 import (
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"strconv"
@@ -134,6 +135,7 @@ func getEnvInt(key string, fallback int) int {
 
 	parsed, err := strconv.Atoi(raw)
 	if err != nil {
+		slog.Warn("config: invalid integer for env var, using fallback", "key", key, "value", raw, "fallback", fallback)
 		return fallback
 	}
 	return parsed
@@ -147,6 +149,7 @@ func getEnvInt64(key string, fallback int64) int64 {
 
 	parsed, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
+		slog.Warn("config: invalid int64 for env var, using fallback", "key", key, "value", raw, "fallback", fallback)
 		return fallback
 	}
 	return parsed

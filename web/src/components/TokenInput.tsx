@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getRuntimeAdminToken, setRuntimeAdminToken } from '../lib/auth'
 
 /**
@@ -11,21 +11,39 @@ export function TokenInput() {
   const [value, setValue] = useState('')
   const [saved, setSaved] = useState(false)
 
-  const hasToken = !!getRuntimeAdminToken()
+  const [hasToken, setHasToken] = useState(!!getRuntimeAdminToken())
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Listen for external token changes to keep indicator in sync.
   useEffect(() => {
-    if (isOpen) {
+    const handler = () => setHasToken(!!getRuntimeAdminToken())
+    window.addEventListener('gatify:token-changed', handler)
+    return () => window.removeEventListener('gatify:token-changed', handler)
+  }, [])
+
+  // Clean up pending save timeout on unmount.
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current !== null) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const handleOpen = useCallback(() => {
+    if (!isOpen) {
       setValue(getRuntimeAdminToken() ?? '')
       setSaved(false)
     }
+    setIsOpen((prev) => !prev)
   }, [isOpen])
 
   const handleSave = useCallback(() => {
     setRuntimeAdminToken(value)
     setSaved(true)
-    setTimeout(() => {
+    saveTimeoutRef.current = setTimeout(() => {
+      saveTimeoutRef.current = null
       setIsOpen(false)
-      // Force a re-render to update indicator dot
       window.dispatchEvent(new Event('gatify:token-changed'))
     }, 600)
   }, [value])
@@ -34,7 +52,7 @@ export function TokenInput() {
     <div className="relative">
       <button
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={handleOpen}
         className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 transition-colors hover:border-slate-600 hover:text-white"
         title={hasToken ? 'API token configured' : 'Set API token'}
       >
