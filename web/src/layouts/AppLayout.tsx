@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { TokenInput } from '../components/TokenInput'
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard' },
@@ -32,6 +33,8 @@ export function AppLayout() {
               </NavLink>
             ))}
           </nav>
+
+          <TokenInput />
         </div>
       </header>
 

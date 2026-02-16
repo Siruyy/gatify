@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 
 	"github.com/Siruyy/gatify/internal/storage/migrations"
@@ -24,12 +24,14 @@ func main() {
 	flag.Parse()
 
 	if databaseURL == "" {
-		log.Fatal("DATABASE_URL is required (set env var or use -database-url)")
+		slog.Error("DATABASE_URL is required (set env var or use -database-url)")
+		os.Exit(1)
 	}
 
 	runner, err := migrations.NewRunner(databaseURL)
 	if err != nil {
-		log.Fatalf("failed to initialize migration runner: %v", err)
+		slog.Error("failed to initialize migration runner", "error", err)
+		os.Exit(1)
 	}
 	defer runner.Close()
 
@@ -40,7 +42,8 @@ func main() {
 		err = runner.Down()
 	case "steps":
 		if steps == 0 {
-			log.Fatal("-steps must be non-zero when -action=steps")
+			slog.Error("-steps must be non-zero when -action=steps")
+			os.Exit(1)
 		}
 		err = runner.Steps(steps)
 	case "goto":
@@ -55,17 +58,20 @@ func main() {
 			fmt.Printf("version=%d dirty=%t\n", current, dirty)
 		}
 	default:
-		log.Fatalf("unsupported action %q", action)
+		slog.Error("unsupported action", "action", action)
+		os.Exit(1)
 	}
 
 	if err != nil {
-		log.Fatalf("migration action %q failed: %v", action, err)
+		slog.Error("migration action failed", "action", action, "error", err)
+		os.Exit(1)
 	}
 
 	if action != "version" {
 		current, dirty, versionErr := runner.Version()
 		if versionErr != nil {
-			log.Fatalf("migration action %q succeeded but version lookup failed: %v", action, versionErr)
+			slog.Error("version lookup failed after migration", "action", action, "error", versionErr)
+			os.Exit(1)
 		}
 
 		fmt.Printf("migration action %q completed (version=%d dirty=%t)\n", action, current, dirty)

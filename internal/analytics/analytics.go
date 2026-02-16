@@ -5,36 +5,36 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 )
 
 // Event represents a single rate limit event to be logged.
 type Event struct {
-	Timestamp   time.Time
-	ClientID    string
-	Method      string
-	Path        string
-	Allowed     bool
-	RuleID      string
-	Limit       int64
-	Remaining   int64
-	ResponseMS  int64 // Response time in milliseconds
+	Timestamp  time.Time
+	ClientID   string
+	Method     string
+	Path       string
+	Allowed    bool
+	RuleID     string
+	Limit      int64
+	Remaining  int64
+	ResponseMS int64 // Response time in milliseconds
 }
 
 // Logger is an asynchronous event logger that batches writes to reduce
 // database load and ensure zero latency impact on the request path.
 type Logger struct {
-	db       *sql.DB
-	events   chan Event
-	done     chan struct{}
-	wg       sync.WaitGroup
-	
+	db     *sql.DB
+	events chan Event
+	done   chan struct{}
+	wg     sync.WaitGroup
+
 	// Configuration
 	batchSize     int
 	flushInterval time.Duration
-	
+
 	// Metrics (optional, for monitoring)
 	mu            sync.RWMutex
 	eventsLogged  int64
@@ -54,7 +54,7 @@ func New(cfg Config) (*Logger, error) {
 	if cfg.DB == nil {
 		return nil, fmt.Errorf("analytics: database connection is required")
 	}
-	
+
 	// Set defaults
 	if cfg.BufferSize <= 0 {
 		cfg.BufferSize = 100
@@ -65,7 +65,7 @@ func New(cfg Config) (*Logger, error) {
 	if cfg.FlushInterval <= 0 {
 		cfg.FlushInterval = 5 * time.Second
 	}
-	
+
 	logger := &Logger{
 		db:            cfg.DB,
 		events:        make(chan Event, cfg.BufferSize),
@@ -73,18 +73,18 @@ func New(cfg Config) (*Logger, error) {
 		batchSize:     cfg.BatchSize,
 		flushInterval: cfg.FlushInterval,
 	}
-	
+
 	// Test DB connection before starting worker
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := cfg.DB.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("analytics: database not available: %w", err)
 	}
-	
+
 	// Start background worker
 	logger.wg.Add(1)
 	go logger.worker()
-	
+
 	return logger, nil
 }
 
@@ -99,7 +99,7 @@ func (l *Logger) Log(event Event) {
 		l.mu.Lock()
 		l.eventsDropped++
 		l.mu.Unlock()
-		log.Printf("analytics: event buffer full, dropping event")
+		slog.Warn("analytics: event buffer full, dropping event")
 	}
 }
 
@@ -107,14 +107,14 @@ func (l *Logger) Log(event Event) {
 func (l *Logger) Close(ctx context.Context) error {
 	// Signal worker to stop
 	close(l.done)
-	
+
 	// Wait for worker to finish with context timeout
 	doneCh := make(chan struct{})
 	go func() {
 		l.wg.Wait()
 		close(doneCh)
 	}()
-	
+
 	select {
 	case <-doneCh:
 		return nil
@@ -133,29 +133,29 @@ func (l *Logger) Stats() (logged, dropped int64) {
 // worker is the background goroutine that batches and writes events to the database.
 func (l *Logger) worker() {
 	defer l.wg.Done()
-	
+
 	batch := make([]Event, 0, l.batchSize)
 	ticker := time.NewTicker(l.flushInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case event := <-l.events:
 			batch = append(batch, event)
-			
+
 			// Flush if batch is full
 			if len(batch) >= l.batchSize {
 				l.flush(batch)
 				batch = batch[:0] // Reset slice
 			}
-			
+
 		case <-ticker.C:
 			// Periodic flush
 			if len(batch) > 0 {
 				l.flush(batch)
 				batch = batch[:0]
 			}
-			
+
 		case <-l.done:
 			// Drain remaining events
 			l.drainAndFlush(batch)
@@ -169,27 +169,27 @@ func (l *Logger) flush(events []Event) {
 	if len(events) == 0 {
 		return
 	}
-	
+
 	// Skip flush if DB is not properly initialized (e.g., in tests)
 	if l.db == nil {
 		return
 	}
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	
+
 	// Begin transaction
 	tx, err := l.db.BeginTx(ctx, nil)
 	if err != nil {
-		log.Printf("analytics: failed to begin transaction: %v", err)
+		slog.Error("analytics: failed to begin transaction", "error", err)
 		return
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("analytics: failed to rollback transaction: %v", err)
+			slog.Error("analytics: failed to rollback transaction", "error", err)
 		}
 	}()
-	
+
 	// Prepare insert statement
 	stmt, err := tx.PrepareContext(ctx, `
 		INSERT INTO rate_limit_events (
@@ -198,12 +198,13 @@ func (l *Logger) flush(events []Event) {
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`)
 	if err != nil {
-		log.Printf("analytics: failed to prepare statement: %v", err)
+		slog.Error("analytics: failed to prepare statement", "error", err)
 		return
 	}
 	defer stmt.Close()
-	
+
 	// Execute batch insert
+	var inserted int64
 	for _, event := range events {
 		_, err := stmt.ExecContext(ctx,
 			event.Timestamp,
@@ -217,23 +218,25 @@ func (l *Logger) flush(events []Event) {
 			event.ResponseMS,
 		)
 		if err != nil {
-			log.Printf("analytics: failed to insert event: %v", err)
+			slog.Error("analytics: failed to insert event", "error", err)
 			// Continue with other events
+			continue
 		}
+		inserted++
 	}
-	
+
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		log.Printf("analytics: failed to commit transaction: %v", err)
+		slog.Error("analytics: failed to commit transaction", "error", err)
 		return
 	}
-	
-	// Update metrics
+
+	// Update metrics — only count successfully inserted events.
 	l.mu.Lock()
-	l.eventsLogged += int64(len(events))
+	l.eventsLogged += inserted
 	l.mu.Unlock()
-	
-	log.Printf("analytics: flushed %d events", len(events))
+
+	slog.Info("analytics: flushed events", "total", len(events), "succeeded", inserted)
 }
 
 // drainAndFlush drains remaining events from the channel and flushes them.
@@ -243,7 +246,7 @@ func (l *Logger) drainAndFlush(batch []Event) {
 		select {
 		case event := <-l.events:
 			batch = append(batch, event)
-			
+
 			// Flush if batch is full
 			if len(batch) >= l.batchSize {
 				l.flush(batch)

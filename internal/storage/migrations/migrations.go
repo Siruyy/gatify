@@ -5,7 +5,7 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -127,16 +127,16 @@ func (r *Runner) Close() {
 	if r.migrate != nil {
 		sourceErr, dbErr := r.migrate.Close()
 		if sourceErr != nil {
-			log.Printf("Warning: error closing migration source: %v", sourceErr)
+			slog.Warn("error closing migration source", "error", sourceErr)
 		}
 		if dbErr != nil {
-			log.Printf("Warning: error closing migration database: %v", dbErr)
+			slog.Warn("error closing migration database", "error", dbErr)
 		}
 	}
 
 	if r.db != nil {
 		if err := r.db.Close(); err != nil {
-			log.Printf("Warning: error closing database connection: %v", err)
+			slog.Warn("error closing database connection", "error", err)
 		}
 	}
 }

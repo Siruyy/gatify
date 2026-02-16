@@ -40,7 +40,7 @@ func TestStatsStreamBroker_SubscribePublish(t *testing.T) {
 
 func TestStatsStreamHandler_WebSocketReceivesEvent(t *testing.T) {
 	broker := NewStatsStreamBroker(4)
-	handler := NewStatsStreamHandler(broker)
+	handler := NewStatsStreamHandler(broker, nil)
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
@@ -77,7 +77,7 @@ func TestStatsStreamHandler_WebSocketReceivesEvent(t *testing.T) {
 }
 
 func TestStatsStreamHandler_MethodNotAllowed(t *testing.T) {
-	h := NewStatsStreamHandler(NewStatsStreamBroker(4))
+	h := NewStatsStreamHandler(NewStatsStreamBroker(4), nil)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/api/stats/stream", nil)
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Siruyy/gatify/internal/analytics"
+	gatifyhttp "github.com/Siruyy/gatify/internal/httputil"
 )
 
 const (
@@ -52,18 +53,18 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != http.MethodGet {
 		w.Header().Set("Allow", http.MethodGet)
-		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		gatifyhttp.WriteJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
 		return
 	}
 
 	if h.provider == nil {
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "analytics service unavailable"})
+		gatifyhttp.WriteJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "analytics service unavailable"})
 		return
 	}
 
 	window, err := parseDurationQuery(r, "window", defaultWindow)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		gatifyhttp.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
@@ -89,58 +90,58 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *StatsHandler) handleOverview(w http.ResponseWriter, r *http.Request, window time.Duration) {
 	result, err := h.provider.GetOverview(r.Context(), window)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to fetch overview stats"})
+		gatifyhttp.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to fetch overview stats"})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": result})
+	gatifyhttp.WriteJSON(w, http.StatusOK, map[string]any{"data": result})
 }
 
 func (h *StatsHandler) handleTopBlocked(w http.ResponseWriter, r *http.Request, window time.Duration) {
 	limit, err := parseLimitQuery(r, defaultLimit, maxLimit)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		gatifyhttp.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
 	result, queryErr := h.provider.GetTopBlocked(r.Context(), window, limit)
 	if queryErr != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to fetch top blocked clients"})
+		gatifyhttp.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to fetch top blocked clients"})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": result})
+	gatifyhttp.WriteJSON(w, http.StatusOK, map[string]any{"data": result})
 }
 
 func (h *StatsHandler) handleRuleStats(w http.ResponseWriter, r *http.Request, ruleID string, window time.Duration) {
 	result, err := h.provider.GetRuleStats(r.Context(), ruleID, window)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to fetch rule stats"})
+		gatifyhttp.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to fetch rule stats"})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": result})
+	gatifyhttp.WriteJSON(w, http.StatusOK, map[string]any{"data": result})
 }
 
 func (h *StatsHandler) handleTimeline(w http.ResponseWriter, r *http.Request, window time.Duration) {
 	bucket, err := parseDurationQuery(r, "bucket", defaultBucket)
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		gatifyhttp.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 		return
 	}
 
 	if bucket < minBucket || bucket > maxBucket {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bucket must be between 1m and 24h"})
+		gatifyhttp.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "bucket must be between 1m and 24h"})
 		return
 	}
 
 	result, queryErr := h.provider.GetTimeline(r.Context(), window, bucket)
 	if queryErr != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to fetch timeline stats"})
+		gatifyhttp.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": "failed to fetch timeline stats"})
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"data": result})
+	gatifyhttp.WriteJSON(w, http.StatusOK, map[string]any{"data": result})
 }
 
 func parseLimitQuery(r *http.Request, fallback, max int) (int, error) {
