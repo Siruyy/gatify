@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import {
   useCreateRule,
   useDeleteRule,
@@ -63,7 +63,7 @@ function ruleToPayload(rule: Rule): RulePayload {
     limit: rule.limit,
     window_seconds: rule.window_seconds,
     identify_by: rule.identify_by === 'header' ? 'header' : 'ip',
-    header_name: rule.header_name ?? '',
+    header_name: rule.identify_by === 'header' ? rule.header_name ?? undefined : undefined,
     enabled: rule.enabled,
   }
 }
@@ -136,14 +136,39 @@ function ConfirmModal({
   onCancel,
   onConfirm,
 }: ConfirmModalProps) {
+  const titleId = useId()
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !isLoading) {
+        onCancel()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isLoading, onCancel, open])
+
   if (!open) {
     return null
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 px-4"
+    >
       <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-xl shadow-slate-950/60">
-        <h3 className="text-lg font-semibold text-white">{title}</h3>
+        <h3 id={titleId} className="text-lg font-semibold text-white">{title}</h3>
         <p className="mt-2 text-sm text-slate-300">{description}</p>
 
         <div className="mt-5 flex justify-end gap-2">
