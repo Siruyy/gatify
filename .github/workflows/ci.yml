@@ -174,12 +174,25 @@ jobs:
       - name: Install k6
         uses: grafana/setup-k6-action@v1
 
+      - name: Wait for dependencies
+        run: |
+          for i in {1..30}; do
+            if bash -c '>/dev/tcp/localhost/6379' 2>/dev/null && \
+               curl -fsS http://localhost:8080/status/200 >/dev/null; then
+              echo "Dependencies are healthy"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Dependencies did not become healthy in time"
+          exit 1
+
       - name: Start gateway
         run: |
           REDIS_ADDR=localhost:6379 \
           BACKEND_URL=http://localhost:8080 \
           TRUST_PROXY=true \
-          RATE_LIMIT_REQUESTS=100 \
+          RATE_LIMIT_REQUESTS=500 \
           RATE_LIMIT_WINDOW_SECONDS=60 \
           go run ./cmd/gatify > /tmp/gatify.log 2>&1 &
 

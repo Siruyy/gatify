@@ -31,6 +31,10 @@ const loadRampDown = QUICK ? "10s" : "30s";
 const rateLimitIterations = QUICK ? 20 : 200;
 const rateLimitStartTime = QUICK ? "1m5s" : "3m30s";
 
+// Mark 429 as an expected outcome for this script since rate limiting is
+// intentionally exercised by the load scenarios.
+http.setResponseCallback(http.expectedStatuses(200, 429));
+
 export const options = {
   summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"],
   scenarios: {
