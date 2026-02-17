@@ -42,6 +42,8 @@ func main() {
 
 	redisCfg := storage.DefaultRedisConfig()
 	redisCfg.Addr = cfg.RedisAddr
+	redisCfg.PoolSize = cfg.RedisPoolSize
+	redisCfg.MinIdleConns = cfg.RedisMinIdleConns
 
 	store, err := storage.NewRedisStorage(ctx, redisCfg)
 	if err != nil {
@@ -76,6 +78,7 @@ func main() {
 	gatewayProxy, err := proxy.New(
 		cfg.BackendURL,
 		lim,
+		proxy.WithBackendResponseHeaderTimeout(cfg.BackendResponseHeaderTimeout),
 		proxy.WithTrustProxy(cfg.TrustProxy),
 		proxy.WithStore(store),
 		proxy.WithRulesMatcher(initialMatcher),

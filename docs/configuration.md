@@ -7,7 +7,10 @@ Gatify currently reads configuration from environment variables in `cmd/gatify/m
 | Variable | Default | Required | Description |
 | --- | ---: | :---: | --- |
 | `REDIS_ADDR` | `localhost:6379` | No | Redis endpoint for limiter state. |
+| `REDIS_POOL_SIZE` | `50` | No | Max Redis client pool size (increase for higher concurrency). |
+| `REDIS_MIN_IDLE_CONNS` | `10` | No | Warm idle Redis connections kept ready in the pool. |
 | `BACKEND_URL` | `http://localhost:8080` | No | Upstream target for reverse proxy. Must be valid `http`/`https` URL. |
+| `BACKEND_RESPONSE_HEADER_TIMEOUT_MS` | `15000` | No | Timeout waiting for upstream response headers before returning `502`. |
 | `TRUST_PROXY` | `false` | No | If `true`, client key uses first IP from `X-Forwarded-For`. |
 | `RATE_LIMIT_REQUESTS` | `100` | No | Allowed requests per window per client key. |
 | `RATE_LIMIT_WINDOW_SECONDS` | `60` | No | Window length in seconds. |

@@ -174,21 +174,43 @@ jobs:
       - name: Install k6
         uses: grafana/setup-k6-action@v1
 
+      - name: Wait for dependencies
+        run: |
+          for i in {1..60}; do
+            if bash -c '>/dev/tcp/localhost/6379' 2>/dev/null && \
+               curl -fsS http://localhost:8080/status/200 >/dev/null; then
+              echo "Dependencies are healthy"
+              exit 0
+            fi
+
+            if (( i % 10 == 0 )); then
+              echo "Still waiting for dependencies... attempt=$i"
+            fi
+            sleep 1
+          done
+          echo "Dependencies did not become healthy in time"
+          exit 1
+
       - name: Start gateway
         run: |
           REDIS_ADDR=localhost:6379 \
           BACKEND_URL=http://localhost:8080 \
           TRUST_PROXY=true \
-          RATE_LIMIT_REQUESTS=100 \
+          RATE_LIMIT_REQUESTS=500 \
           RATE_LIMIT_WINDOW_SECONDS=60 \
           go run ./cmd/gatify > /tmp/gatify.log 2>&1 &
 
       - name: Wait for gateway health
         run: |
-          for i in {1..30}; do
+          for i in {1..60}; do
             if curl -fsS http://localhost:3000/health >/dev/null; then
               echo "Gateway is healthy"
               exit 0
+            fi
+
+            if (( i % 10 == 0 )); then
+              echo "Gateway not healthy yet... attempt=$i"
+              tail -n 50 /tmp/gatify.log || true
             fi
             sleep 1
           done
@@ -196,8 +218,28 @@ jobs:
           cat /tmp/gatify.log
           exit 1
 
+      - name: Wait for proxy routes
+        run: |
+          for i in {1..60}; do
+            health_code=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3000/proxy/status/200 || true)
+            api_code=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3000/proxy/get || true)
+            if [[ "$health_code" =~ ^(200|429)$ ]] && [[ "$api_code" =~ ^(200|429)$ ]]; then
+              echo "Proxy routes are ready (health=$health_code api=$api_code)"
+              exit 0
+            fi
+
+            if (( i % 10 == 0 )); then
+              echo "Proxy routes not ready yet... attempt=$i health=$health_code api=$api_code"
+              tail -n 80 /tmp/gatify.log || true
+            fi
+            sleep 1
+          done
+          echo "Proxy routes did not become ready in time"
+          cat /tmp/gatify.log
+          exit 1
+
       - name: Run k6 quick load test
-        run: k6 run -e BASE_URL=http://localhost:3000 -e QUICK=true tests/load/k6_gateway.js
+        run: k6 run -e BASE_URL=http://localhost:3000 -e QUICK=true -e PROXY_HEALTH_PATH=/proxy/status/200 -e PROXY_API_PATH=/proxy/get tests/load/k6_gateway.js
 
       - name: Print gateway logs on failure
         if: failure()

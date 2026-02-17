@@ -31,12 +31,13 @@ type SlidingWindowStore interface {
 
 // GatewayProxy is an HTTP reverse proxy with optional rate limiting.
 type GatewayProxy struct {
-	proxy      *httputil.ReverseProxy
-	limiter    RateLimiter
-	store      SlidingWindowStore
-	matcher    atomic.Pointer[rules.Matcher]
-	trustProxy bool
-	eventSink  atomic.Pointer[func(Event)]
+	proxy                        *httputil.ReverseProxy
+	limiter                      RateLimiter
+	store                        SlidingWindowStore
+	matcher                      atomic.Pointer[rules.Matcher]
+	trustProxy                   bool
+	eventSink                    atomic.Pointer[func(Event)]
+	backendResponseHeaderTimeout time.Duration
 }
 
 // Event represents a single gateway request outcome for live streaming.
@@ -85,6 +86,16 @@ func WithStore(store SlidingWindowStore) Option {
 	}
 }
 
+// WithBackendResponseHeaderTimeout sets how long the reverse proxy waits
+// for response headers from the backend before treating it as a bad gateway.
+func WithBackendResponseHeaderTimeout(timeout time.Duration) Option {
+	return func(gp *GatewayProxy) {
+		if timeout > 0 {
+			gp.backendResponseHeaderTimeout = timeout
+		}
+	}
+}
+
 // New creates a new GatewayProxy targeting the provided backend URL.
 func New(target *url.URL, limiter RateLimiter, opts ...Option) (*GatewayProxy, error) {
 	if target == nil {
@@ -106,12 +117,27 @@ func New(target *url.URL, limiter RateLimiter, opts ...Option) (*GatewayProxy, e
 	}
 
 	gp := &GatewayProxy{
-		proxy:   rp,
-		limiter: limiter,
+		proxy:                        rp,
+		limiter:                      limiter,
+		backendResponseHeaderTimeout: 15 * time.Second,
 	}
 	for _, opt := range opts {
 		opt(gp)
 	}
+
+	baseTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, fmt.Errorf("proxy: default transport has unexpected type %T", http.DefaultTransport)
+	}
+
+	transport := baseTransport.Clone()
+	transport.MaxIdleConns = 1024
+	transport.MaxIdleConnsPerHost = 256
+	transport.MaxConnsPerHost = 512
+	transport.IdleConnTimeout = 90 * time.Second
+	transport.ResponseHeaderTimeout = gp.backendResponseHeaderTimeout
+
+	rp.Transport = transport
 
 	return gp, nil
 }
