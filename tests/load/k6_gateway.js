@@ -23,6 +23,7 @@ const blockedRequests = new Counter("blocked_requests");
 const BASE = __ENV.BASE_URL || "http://localhost:3000";
 const QUICK = __ENV.QUICK === "true";
 const REQUIRE_BLOCKED = __ENV.REQUIRE_BLOCKED !== "false" && !QUICK;
+const PROXY_HEALTH_PATH = __ENV.PROXY_HEALTH_PATH || "/proxy/health";
 const PROXY_API_PATH = __ENV.PROXY_API_PATH || "/proxy/api";
 
 const loadVUs = QUICK ? 10 : 50;
@@ -110,7 +111,7 @@ export default function () {
   });
 
   group("proxy_health", () => {
-    const res = http.get(`${BASE}/proxy/health`);
+    const res = http.get(`${BASE}${PROXY_HEALTH_PATH}`);
     const is429 = checkRateLimitHeaders(res);
     rateLimited.add(is429);
     if (is429) blockedRequests.add(1);
