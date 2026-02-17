@@ -209,8 +209,23 @@ jobs:
           cat /tmp/gatify.log
           exit 1
 
+      - name: Wait for proxy routes
+        run: |
+          for i in {1..30}; do
+            health_code=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3000/proxy/health || true)
+            api_code=$(curl -sS -o /dev/null -w "%{http_code}" http://localhost:3000/proxy/status/200 || true)
+            if [[ "$health_code" =~ ^(200|429)$ ]] && [[ "$api_code" =~ ^(200|429)$ ]]; then
+              echo "Proxy routes are ready (health=$health_code api=$api_code)"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Proxy routes did not become ready in time"
+          cat /tmp/gatify.log
+          exit 1
+
       - name: Run k6 quick load test
-        run: k6 run -e BASE_URL=http://localhost:3000 -e QUICK=true tests/load/k6_gateway.js
+        run: k6 run -e BASE_URL=http://localhost:3000 -e QUICK=true -e PROXY_API_PATH=/proxy/status/200 tests/load/k6_gateway.js
 
       - name: Print gateway logs on failure
         if: failure()
