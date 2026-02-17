@@ -32,6 +32,7 @@ const rateLimitIterations = QUICK ? 20 : 200;
 const rateLimitStartTime = QUICK ? "1m5s" : "3m30s";
 
 export const options = {
+  summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"],
   scenarios: {
     smoke: {
       executor: "constant-vus",
@@ -63,6 +64,8 @@ export const options = {
     "http_req_duration{scenario:smoke}": [QUICK ? "p(95)<10000" : "p(95)<500"],
     // Under load, p95 should stay under 1s
     "http_req_duration{scenario:load}": [QUICK ? "p(95)<5000" : "p(95)<1000"],
+    // Keep transport/network-level failures low.
+    http_req_failed: [QUICK ? "rate<0.02" : "rate<0.01"],
     // In full mode, at least some requests should be rate-limited in burst traffic.
     // Quick mode is optimized for fast CI signal and does not require 429 responses.
     "blocked_requests": [REQUIRE_BLOCKED ? "count>0" : "count>=0"],
@@ -129,18 +132,34 @@ export default function () {
 
 // ── Teardown ────────────────────────────────────────────────────
 export function handleSummary(data) {
-  const totalReqs = data.metrics.http_reqs ? data.metrics.http_reqs.values.count : 0;
-  const blocked = data.metrics.blocked_requests
-    ? data.metrics.blocked_requests.values.count
-    : 0;
-  const p95Raw = data.metrics.http_req_duration
-    ? data.metrics.http_req_duration.values["p(95)"]
-    : null;
-  const p99Raw = data.metrics.http_req_duration
-    ? data.metrics.http_req_duration.values["p(99)"]
-    : null;
+  const metricValue = (name, stat) => {
+    const metric = data.metrics?.[name];
+    if (!metric) return null;
+
+    // k6 summary data commonly exposes stats directly on the metric object.
+    if (typeof metric[stat] === "number") return metric[stat];
+
+    // Some adapters expose under `values`.
+    if (metric.values && typeof metric.values[stat] === "number") {
+      return metric.values[stat];
+    }
+
+    return null;
+  };
+
+  const totalReqs = metricValue("http_reqs", "count") ?? 0;
+  const blocked = metricValue("blocked_requests", "count") ?? 0;
+  const failRateRaw =
+    metricValue("http_req_failed", "rate") ?? metricValue("http_req_failed", "value");
+  const smokeP95Raw = metricValue("http_req_duration{scenario:smoke}", "p(95)");
+  const loadP95Raw = metricValue("http_req_duration{scenario:load}", "p(95)");
+  const p95Raw = metricValue("http_req_duration", "p(95)");
+  const p99Raw = metricValue("http_req_duration", "p(99)");
   const p95 = typeof p95Raw === "number" ? p95Raw.toFixed(2) : "N/A";
   const p99 = typeof p99Raw === "number" ? p99Raw.toFixed(2) : "N/A";
+  const smokeP95 = typeof smokeP95Raw === "number" ? smokeP95Raw.toFixed(2) : "N/A";
+  const loadP95 = typeof loadP95Raw === "number" ? loadP95Raw.toFixed(2) : "N/A";
+  const failRate = typeof failRateRaw === "number" ? (failRateRaw * 100).toFixed(3) : "N/A";
 
   const summary = `
 ========================================
@@ -148,8 +167,11 @@ export function handleSummary(data) {
 ========================================
   Mode:              ${QUICK ? "quick" : "full"}
   Total requests:    ${totalReqs}
+  Transport fail %:  ${failRate}%
   Blocked (429):     ${blocked}
   Block rate:        ${totalReqs > 0 ? ((blocked / totalReqs) * 100).toFixed(1) : 0}%
+  Smoke p95:         ${smokeP95} ms
+  Load p95:          ${loadP95} ms
   p95 latency:       ${p95} ms
   p99 latency:       ${p99} ms
 ========================================

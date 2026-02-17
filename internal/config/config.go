@@ -20,6 +20,10 @@ type Config struct {
 	// BackendURL is the upstream target URL for the reverse proxy.
 	BackendURL *url.URL
 
+	// BackendResponseHeaderTimeout bounds how long the proxy waits for
+	// backend response headers before failing the request.
+	BackendResponseHeaderTimeout time.Duration
+
 	// TrustProxy enables trusting X-Forwarded-For headers.
 	TrustProxy bool
 
@@ -34,6 +38,12 @@ type Config struct {
 
 	// RedisAddr is the Redis server address (host:port).
 	RedisAddr string
+
+	// RedisPoolSize controls max Redis connections in the pool.
+	RedisPoolSize int
+
+	// RedisMinIdleConns controls minimum idle Redis connections kept warm.
+	RedisMinIdleConns int
 
 	// DatabaseURL is the PostgreSQL/TimescaleDB connection string for analytics.
 	// Empty string disables analytics persistence.
@@ -55,10 +65,16 @@ func Load() (*Config, error) {
 		TrustProxy:        getEnv("TRUST_PROXY", "false") == "true",
 		AdminAPIToken:     strings.TrimSpace(getEnv("ADMIN_API_TOKEN", "")),
 		RedisAddr:         getEnv("REDIS_ADDR", "localhost:6379"),
+		RedisPoolSize:     getEnvInt("REDIS_POOL_SIZE", 50),
+		RedisMinIdleConns: getEnvInt("REDIS_MIN_IDLE_CONNS", 10),
 		DatabaseURL:       strings.TrimSpace(getEnv("DATABASE_URL", "")),
 		LogLevel:          strings.ToLower(getEnv("LOG_LEVEL", "info")),
 		RateLimitRequests: getEnvInt64("RATE_LIMIT_REQUESTS", 100),
 		RateLimitWindow:   time.Duration(getEnvInt("RATE_LIMIT_WINDOW_SECONDS", 60)) * time.Second,
+		BackendResponseHeaderTimeout: time.Duration(getEnvInt(
+			"BACKEND_RESPONSE_HEADER_TIMEOUT_MS",
+			15000,
+		)) * time.Millisecond,
 	}
 
 	// Parse backend URL
@@ -102,11 +118,23 @@ func (c *Config) Validate() error {
 	if c.RedisAddr == "" {
 		return fmt.Errorf("config: REDIS_ADDR is required")
 	}
+	if c.RedisPoolSize <= 0 {
+		return fmt.Errorf("config: REDIS_POOL_SIZE must be > 0")
+	}
+	if c.RedisMinIdleConns < 0 {
+		return fmt.Errorf("config: REDIS_MIN_IDLE_CONNS must be >= 0")
+	}
+	if c.RedisMinIdleConns > c.RedisPoolSize {
+		return fmt.Errorf("config: REDIS_MIN_IDLE_CONNS must be <= REDIS_POOL_SIZE")
+	}
 	if c.RateLimitRequests <= 0 {
 		return fmt.Errorf("config: RATE_LIMIT_REQUESTS must be > 0")
 	}
 	if c.RateLimitWindow <= 0 {
 		return fmt.Errorf("config: RATE_LIMIT_WINDOW_SECONDS must be > 0")
+	}
+	if c.BackendResponseHeaderTimeout <= 0 {
+		return fmt.Errorf("config: BACKEND_RESPONSE_HEADER_TIMEOUT_MS must be > 0")
 	}
 	if c.AdminAPIToken == "change-me" {
 		return fmt.Errorf("config: ADMIN_API_TOKEN must be changed from default value")
