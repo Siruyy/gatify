@@ -20,11 +20,18 @@ const rateLimitRemaining = new Trend("ratelimit_remaining");
 const blockedRequests = new Counter("blocked_requests");
 
 // ── Configuration ───────────────────────────────────────────────
-const BASE = __ENV.BASE_URL || "http://localhost:3000";
+const BASE = (__ENV.BASE_URL || "http://localhost:3000").replace(/\/+$/, "");
 const QUICK = __ENV.QUICK === "true";
 const REQUIRE_BLOCKED = __ENV.REQUIRE_BLOCKED !== "false" && !QUICK;
-const PROXY_HEALTH_PATH = __ENV.PROXY_HEALTH_PATH || "/proxy/health";
-const PROXY_API_PATH = __ENV.PROXY_API_PATH || "/proxy/api";
+
+function normalizePath(path, fallback) {
+  const raw = (path || fallback || "").trim();
+  const noLeadingSlashes = raw.replace(/^\/+/, "");
+  return `/${noLeadingSlashes}`;
+}
+
+const PROXY_HEALTH_PATH = normalizePath(__ENV.PROXY_HEALTH_PATH, "/proxy/health");
+const PROXY_API_PATH = normalizePath(__ENV.PROXY_API_PATH, "/proxy/api");
 
 const loadVUs = QUICK ? 10 : 50;
 const loadRampUp = QUICK ? "10s" : "30s";
@@ -33,9 +40,9 @@ const loadRampDown = QUICK ? "10s" : "30s";
 const rateLimitIterations = QUICK ? 20 : 200;
 const rateLimitStartTime = QUICK ? "1m5s" : "3m30s";
 
-// Mark 429 as an expected outcome for this script since rate limiting is
-// intentionally exercised by the load scenarios.
-http.setResponseCallback(http.expectedStatuses(200, 429));
+// Mark 429 as expected for proxied requests only, since rate limiting is
+// intentionally exercised by those scenarios.
+const proxyResponseCallback = http.expectedStatuses(200, 429);
 
 export const options = {
   summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"],
@@ -111,7 +118,9 @@ export default function () {
   });
 
   group("proxy_health", () => {
-    const res = http.get(`${BASE}${PROXY_HEALTH_PATH}`);
+    const res = http.get(`${BASE}${PROXY_HEALTH_PATH}`, {
+      responseCallback: proxyResponseCallback,
+    });
     const is429 = checkRateLimitHeaders(res);
     rateLimited.add(is429);
     if (is429) blockedRequests.add(1);
@@ -122,7 +131,9 @@ export default function () {
   });
 
   group("proxy_api", () => {
-    const res = http.get(`${BASE}${PROXY_API_PATH}`);
+    const res = http.get(`${BASE}${PROXY_API_PATH}`, {
+      responseCallback: proxyResponseCallback,
+    });
     const is429 = checkRateLimitHeaders(res);
     rateLimited.add(is429);
     if (is429) blockedRequests.add(1);
